@@ -23,8 +23,8 @@ function fallbackText(lead) {
   const interest = [lead.interested_country?.replace(/-/g, ' '), lead.interested_course?.toUpperCase()]
     .filter(Boolean).join(' ');
   return interest
-    ? `Hello! Following up as promised from SkyAI Education — are you still considering ${interest}? Happy to pick up right where we left off. 😊`
-    : 'Hello! Following up as promised from SkyAI Education — shall we continue where we left off? 😊';
+    ? `Hello! Following up as promised from Sky High Career Consultancy — are you still considering ${interest}? Happy to pick up right where we left off. 😊`
+    : 'Hello! Following up as promised from Sky High Career Consultancy — shall we continue where we left off? 😊';
 }
 
 async function generateFollowUpText(lead) {

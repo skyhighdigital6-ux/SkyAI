@@ -14,10 +14,10 @@ const LOGO_PATH = join(dirname(fileURLToPath(import.meta.url)), 'assets', 'skyai
 
 // ── Branding (single place to edit before launch) ────────────────────
 const BRAND = {
-  name: 'SkyAI Education',
+  name: 'Sky High Career Consultancy',
   tagline: 'Your Trusted Partner for Abroad Medical Studies',
   address: '2nd Floor, Nirmaan Complex, Baghat, Srinagar, Jammu and Kashmir 190005',
-  phone: '+91 96973 60000',
+  phone: '091231 37500',
   footerLine: 'For personalized guidance, WhatsApp us anytime.',
   // Colour scheme (proposed): deep green + white, matching the dashboard.
   primary: '#123524',   // deep green — headers, table headers
@@ -280,7 +280,7 @@ export async function generatePdf({ contentType, topic }) {
 
   return {
     buffer: Buffer.concat(chunks),
-    fileName: `SkyAI-${baseName}.pdf`,
+    fileName: `SkyHigh-${baseName}.pdf`,
     storagePath: `generated/${contentType}-${slugify(topic) || 'general'}.pdf`,
   };
 }
@@ -301,7 +301,7 @@ export async function getOrCreatePdf({ contentType, topic }) {
     if (!error && blob) {
       return {
         buffer: Buffer.from(await blob.arrayBuffer()),
-        fileName: `SkyAI-${slugify(topic) || contentType}.pdf`,
+        fileName: `SkyHigh-${slugify(topic) || contentType}.pdf`,
         storagePath,
         cached: true,
       };

@@ -20,7 +20,7 @@ export default function Login() {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <img src="/logo.png" alt="SkyAI Education Services" style={{ width: 220, alignSelf: 'center', marginBottom: 6 }} />
+        <img src="/logo.png" alt="Sky High Career Consultancy" style={{ width: 220, alignSelf: 'center', marginBottom: 6 }} />
         <h1 style={{ textAlign: 'center', fontSize: 18 }}>WhatsApp CRM</h1>
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
