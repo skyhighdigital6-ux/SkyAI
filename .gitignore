@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# env — never commit real keys
+.env
+.env.local
+.env*.local
+
+# baileys local auth session (contains WhatsApp credentials)
+baileys_auth/
+*.session.json
+
+# next.js
+apps/dashboard/.next/
+apps/dashboard/out/
+
+# logs
+*.log
+
+# os
+.DS_Store
+
+.vercel
+.env*

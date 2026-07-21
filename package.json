@@ -1,0 +1,19 @@
+{
+  "name": "skyai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WhatsApp automation CRM for education consultancy (abroad medical studies)",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "backend": "npm run dev --workspace=apps/backend",
+    "dashboard": "npm run dev --workspace=apps/dashboard",
+    "test:gemini": "npm run test:gemini --workspace=apps/backend",
+    "check:db": "npm run check:db --workspace=apps/backend"
+  }
+}

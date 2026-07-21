@@ -1,0 +1,7 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+# Monorepo: install runs at the root (npm workspaces), backend starts here
+startCommand = "npm start --workspace=apps/backend"
+restartPolicyType = "ON_FAILURE"

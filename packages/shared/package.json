@@ -1,0 +1,11 @@
+{
+  "name": "shared",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Constants and type shapes shared by backend and dashboard",
+  "type": "module",
+  "exports": {
+    "./constants": "./constants.js",
+    "./types": "./types.js"
+  }
+}

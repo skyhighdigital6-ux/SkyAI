@@ -1,0 +1,18 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Next.js admin dashboard — deployed on Vercel, reads Supabase + calls Railway backend API",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^16.6.1",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
