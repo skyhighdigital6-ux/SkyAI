@@ -22,3 +22,6 @@ apps/dashboard/out/
 
 .vercel
 .env*
+
+.vercel
+.env*
