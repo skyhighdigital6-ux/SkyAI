@@ -5,7 +5,13 @@ import { getActiveCounsellors, getSetting } from './catalog.js';
 
 export const BRAND = 'Sky High Educational Services Pvt. Ltd.';
 
-export const nameOf = (lead) => (lead?.name && lead.name !== 'unknown' ? lead.name : 'Student');
+// Title-case the name for display, so "arun kumar" → "Arun Kumar" in messages
+// (the stored value is left untouched).
+const titleCase = (s) => String(s).replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+export const nameOf = (lead) => {
+  const n = lead?.name && lead.name !== 'unknown' ? lead.name.trim() : '';
+  return n ? titleCase(n) : 'Student';
+};
 
 export const welcome = (lead) =>
   `Hi ${nameOf(lead)}\n` +
