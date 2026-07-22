@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { backendApi } from '../../lib/backendApi';
 import { DEMO, demoLeads, demoMessages, demoQuota } from '../../lib/demo';
-import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor } from '../../lib/catalogNames';
+import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor, leadScore, leadTemp, TEMP_CLS } from '../../lib/catalogNames';
 import TopBar from '../../components/TopBar';
 import { Ic } from '../../components/Icons';
 
@@ -127,20 +127,27 @@ export default function Dashboard() {
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table>
-                <thead><tr><th>Name</th><th>Number</th><th>Course</th><th>State</th><th>College</th><th>Status</th><th>Last Active</th><th>Needs Human</th></tr></thead>
+                <thead><tr><th>Name</th><th>Number</th><th>Temperature</th><th>Score</th><th>Stage</th><th>Course</th><th>State</th><th>College</th><th>Counsellor</th><th>Source</th><th>Last Active</th><th>Needs Human</th></tr></thead>
                 <tbody>
-                  {filtered.map((l) => (
+                  {filtered.map((l) => {
+                    const temp = leadTemp(l);
+                    return (
                       <tr key={l.id} className={l.id === selId ? 'sel' : ''} onClick={() => setSelId(l.id)}>
                         <td><span className="namecell"><span className="avatar sq">{initials(l.name)}</span>{l.name || '—'}</span></td>
                         <td><span className="numcell"><span className="dot" />+{l.whatsapp_number}</span></td>
+                        <td><span className={`badge ${TEMP_CLS[temp]}`}><span className="b-dot" />{temp}</span></td>
+                        <td><b>{leadScore(l)}</b></td>
+                        <td>{l.flow_status ? <span className={`badge ${STATUS_CLS[l.flow_status] ?? 'st-gray'}`}>{l.flow_status}</span> : '—'}</td>
                         <td>{leadCourse(l, maps)}</td>
                         <td>{leadState(l, maps)}</td>
                         <td>{leadCollege(l, maps)}</td>
-                        <td>{l.flow_status ? <span className={`badge ${STATUS_CLS[l.flow_status] ?? 'st-gray'}`}>{l.flow_status}</span> : '—'}</td>
+                        <td>{leadCounsellor(l, maps)}</td>
+                        <td className="muted">{l.entry_source ?? '—'}</td>
                         <td>{timeAgo(l.last_active_at)}</td>
                         <td><span className={`badge ${l.needs_human ? 'yes' : 'no'}`}>{l.needs_human ? 'Yes' : 'No'}</span></td>
                       </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
