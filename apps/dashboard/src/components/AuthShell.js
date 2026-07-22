@@ -53,7 +53,7 @@ export default function AuthShell({ children }) {
     <div className="frame">
       <aside className="sidebar">
         <div className="logo" style={{ padding: '4px 6px 10px' }}>
-          <img src="/logo.png" alt="SkyHigh Educational Services" style={{ width: '100%', maxWidth: 178, display: 'block' }} />
+          <img src="/logo.png" alt="SkyHigh Educational Services" style={{ width: '100%', maxWidth: 140, display: 'block' }} />
         </div>
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href} className={pathname.startsWith(l.href) ? 'active' : ''}>
