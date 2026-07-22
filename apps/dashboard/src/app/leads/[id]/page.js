@@ -133,6 +133,7 @@ export default function LeadDetail() {
               ? <button className="btn" onClick={resume} disabled={!!busy}>{busy === 'resume' ? '…' : '▶ Resume bot'}</button>
               : <button className="btn" onClick={takeover} disabled={!!busy}>{busy === 'takeover' ? '…' : '✋ Take over'}</button>}
             <button className="btn secondary" onClick={() => setEditing(true)}>✏️ Edit</button>
+            {!DEMO && <button className="btn secondary" onClick={() => action('start', () => backendApi(`/leads/${id}/start`, { method: 'POST' }))} disabled={!!busy}>{busy === 'start' ? '…' : '💬 Start conversation'}</button>}
             <button className="btn danger" onClick={purge} disabled={!!busy}>Purge data</button>
           </div>
           <LeadEdit lead={lead} open={editing} onClose={() => setEditing(false)} onSaved={load} />
