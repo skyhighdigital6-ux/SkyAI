@@ -15,6 +15,7 @@ const STATUS_CLS = {
   'College Selected': 'st-teal', 'Documents Shared': 'st-purple', 'Guidance Completed': 'st-green',
   'Callback Requested': 'st-amber', 'Human Assistance Required': 'st-red', 'Not Interested': 'st-gray',
 };
+const DOC_LABEL = { brochure: 'Brochure', fee_structure: 'Fee Structure', other: 'Admission Document' };
 
 const initials = (n) => (n || '??').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 const timeAgo = (iso) => {
@@ -254,16 +255,16 @@ export default function Dashboard() {
               )}
 
               <div className="card grow">
-                <h3>Documents Shared ({sel.documents_shared?.length ?? 0})</h3>
-                {(sel.documents_shared ?? []).map((d, i) => (
+                <h3>Documents Shared ({sel.flow_documents_sent?.length ?? 0})</h3>
+                {(sel.flow_documents_sent ?? []).map((d, i) => (
                   <div key={i} className="doc-row">
                     <span className="pdf-ico">PDF</span>
-                    <span className="nm">{d.doc}<small>{d.size ?? 'PDF'}</small></span>
-                    <span className="tm">{hhmm(d.sent_at)}</span>
+                    <span className="nm">{DOC_LABEL[d.type] ?? 'Document'}<small>{d.path?.split('/').pop() ?? 'PDF'}</small></span>
+                    <span className="tm">{d.sent_at ? hhmm(d.sent_at) : ''}</span>
                   </div>
                 ))}
-                {!sel.documents_shared?.length && <div className="muted">No documents shared yet.</div>}
-                <div className="linky" style={{ marginTop: 8 }}>View all documents →</div>
+                {!sel.flow_documents_sent?.length && <div className="muted">No documents shared yet.</div>}
+                <div className="linky" style={{ marginTop: 8 }} onClick={() => router.push('/documents')}>View all documents →</div>
               </div>
 
               <div className="btnrow" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', paddingTop: 12 }}>

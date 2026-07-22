@@ -9,6 +9,22 @@ import { parseCsv, normalizeNumber, validNumber } from '../lib/leadUtils';
 
 const TEMPLATE = 'name,whatsapp_number,course,state\nRahul Sharma,919876543210,MBBS,Bihar\nPriya Verma,9123456789,Engineering,Karnataka\n';
 
+// SheetJS loaded on demand from its CDN (avoids adding a build dependency).
+let xlsxPromise = null;
+function loadXLSX() {
+  if (typeof window !== 'undefined' && window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxPromise) {
+    xlsxPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+      s.onload = () => resolve(window.XLSX);
+      s.onerror = () => reject(new Error('Failed to load the Excel library'));
+      document.head.appendChild(s);
+    });
+  }
+  return xlsxPromise;
+}
+
 async function authedPost(body) {
   const { data: { session } } = await supabase.auth.getSession();
   const res = await fetch('/api/add-lead', {
@@ -38,6 +54,10 @@ export default function LeadImport({ open, onClose, onDone }) {
     if (!open) return;
     supabase.from('courses').select('id,name').eq('is_active', true).order('display_order').then(({ data }) => setCourses(data ?? []));
     supabase.from('states').select('id,name').eq('is_active', true).order('display_order').then(({ data }) => setStates(data ?? []));
+    // Reset the form each time the modal opens so a previous lead's details
+    // don't linger.
+    setForm({ name: '', whatsapp_number: '', selected_course_id: '', selected_state_id: '' });
+    setRows([]);
     setError(''); setResult('');
   }, [open]);
 
@@ -71,16 +91,48 @@ export default function LeadImport({ open, onClose, onDone }) {
     setBusy(false);
   }
 
-  function loadCsv(text) {
-    const parsed = parseCsv(text).map((r) => ({
+  // Map parsed rows [{name, whatsapp_number, course, state}] → preview rows.
+  function setPreview(parsed) {
+    setRows(parsed.map((r) => ({
       name: r.name,
-      whatsapp_number: r.whatsapp_number,
+      whatsapp_number: String(r.whatsapp_number ?? ''),
       normalized: normalizeNumber(r.whatsapp_number),
       selected_course_id: byName(courses, r.course),
       selected_state_id: byName(states, r.state),
-    }));
-    setRows(parsed);
+    })).filter((r) => r.whatsapp_number));
     setError(''); setResult('');
+  }
+  const loadCsv = (text) => setPreview(parseCsv(text));
+
+  // Read an uploaded Excel (.xlsx/.xls) or CSV file into the preview.
+  async function loadFile(file) {
+    if (!file) return;
+    if (file.name.toLowerCase().endsWith('.csv')) { setPreview(parseCsv(await file.text())); return; }
+    try {
+      const XLSX = await loadXLSX();
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: '' });
+      const get = (row, keys) => { for (const k of Object.keys(row)) if (keys.includes(k.trim().toLowerCase())) return row[k]; return ''; };
+      setPreview(json.map((r) => ({
+        name: get(r, ['name', 'student', 'student_name']),
+        whatsapp_number: get(r, ['whatsapp_number', 'number', 'phone', 'mobile', 'whatsapp']),
+        course: get(r, ['course']), state: get(r, ['state']),
+      })));
+    } catch (err) { setError(`Could not read that Excel file: ${err.message}`); }
+  }
+
+  async function downloadSampleExcel() {
+    try {
+      const XLSX = await loadXLSX();
+      const ws = XLSX.utils.aoa_to_sheet([
+        ['name', 'whatsapp_number', 'course', 'state'],
+        ['Rahul Sharma', '919876543210', 'MBBS', 'Bihar'],
+        ['Priya Verma', '9123456789', 'Engineering', 'Karnataka'],
+      ]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+      XLSX.writeFile(wb, 'leads-sample.xlsx');
+    } catch (err) { setError(`Could not generate the sample: ${err.message}`); }
   }
 
   async function submitBulk() {
@@ -115,7 +167,7 @@ export default function LeadImport({ open, onClose, onDone }) {
         </div>
         <div className="tabs" style={{ marginBottom: 14 }}>
           <button className={tab === 'manual' ? 'active' : ''} onClick={() => { setTab('manual'); setError(''); setResult(''); }}>Add manually</button>
-          <button className={tab === 'bulk' ? 'active' : ''} onClick={() => { setTab('bulk'); setError(''); setResult(''); }}>Bulk upload (CSV)</button>
+          <button className={tab === 'bulk' ? 'active' : ''} onClick={() => { setTab('bulk'); setError(''); setResult(''); }}>Bulk upload (Excel)</button>
         </div>
 
         {tab === 'manual' ? (
@@ -142,12 +194,12 @@ export default function LeadImport({ open, onClose, onDone }) {
         ) : (
           <div>
             <p className="muted" style={{ marginTop: 0 }}>
-              CSV columns: <b>name, whatsapp_number, course, state</b> (course &amp; state optional, matched by name).
+              Excel (.xlsx) or CSV columns: <b>name, whatsapp_number, course, state</b> (course &amp; state optional, matched by name).
               Numbers without a country code are treated as Indian (+91).{' '}
-              <a href={`data:text/csv;charset=utf-8,${encodeURIComponent(TEMPLATE)}`} download="leads-template.csv" style={{ color: 'var(--green)', fontWeight: 600 }}>Download template</a>
+              <span className="linky" onClick={downloadSampleExcel} style={{ color: 'var(--green)', fontWeight: 600 }}>Download sample Excel</span>
             </p>
-            <input type="file" accept=".csv,text/csv" onChange={(e) => { const f = e.target.files?.[0]; if (f) f.text().then(loadCsv); }} />
-            <div className="muted" style={{ margin: '10px 0 4px' }}>…or paste CSV:</div>
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => loadFile(e.target.files?.[0])} />
+            <div className="muted" style={{ margin: '10px 0 4px' }}>…or paste rows (CSV):</div>
             <textarea rows={5} placeholder={TEMPLATE} onChange={(e) => loadCsv(e.target.value)} />
             {rows.length > 0 && (
               <div className="card" style={{ padding: 0, marginTop: 12, maxHeight: 200, overflow: 'auto' }}>
