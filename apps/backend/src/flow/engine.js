@@ -162,19 +162,63 @@ async function goToCollegeStep(sock, jid, lead, { resetPage = true } = {}) {
 }
 
 async function invalid(sock, jid, lead, text) {
-  const count = (lead.unrecognized_count || 0) + 1;
-  if (count >= 2) {
-    // Two misses in a row → hand to a human instead of looping bot messages.
-    return goHandover(sock, jid, lead);
-  }
-  lead = await updateLeadFields(lead.id, { unrecognized_count: count });
-
-  // AI fallback: if it reads like a real question, answer once, then re-show
-  // the step. Falls back to the scripted line when AI is off/unavailable.
+  // Always try to answer the free-text with AI first, then re-show the current
+  // step — so general/off-flow questions get a real answer and typos never hit
+  // a dead-end. The bot never goes silent while AI is available.
   const aiAnswer = await answerFreeText(lead, text);
-  await say(sock, jid, lead, aiAnswer || C.invalidReply);
+  if (aiAnswer) {
+    lead = await updateLeadFields(lead.id, { unrecognized_count: 0 });
+    await say(sock, jid, lead, aiAnswer);
+    await resendStep(sock, jid, lead);
+    return lead;
+  }
+  // AI unavailable → scripted line; only offer a human after several misses in a
+  // row (never on a single typo).
+  const count = (lead.unrecognized_count || 0) + 1;
+  if (count >= 3) return goHandover(sock, jid, lead);
+  lead = await updateLeadFields(lead.id, { unrecognized_count: count });
+  await say(sock, jid, lead, C.invalidReply);
   await resendStep(sock, jid, lead);
   return lead;
+}
+
+// ── follow-up scheduling ("contact me after 4 days", "call me later") ──
+const DAY = 86400000, HOUR = 3600000;
+function parseDelayMs(s) {
+  s = s.toLowerCase();
+  if (/\b(day after tomorrow|parso)\b/.test(s)) return 2 * DAY;
+  if (/\b(tomorrow|kal)\b/.test(s)) return DAY;
+  let m;
+  if ((m = s.match(/\b(\d+)\s*(hour|hours|hr|hrs|ghante|ghanta)\b/))) return +m[1] * HOUR;
+  if ((m = s.match(/\b(\d+)\s*(day|days|din)\b/))) return +m[1] * DAY;
+  if ((m = s.match(/\b(\d+)\s*(week|weeks|hafte|hafta)\b/))) return +m[1] * 7 * DAY;
+  if ((m = s.match(/\b(\d+)\s*(month|months|mahine|mahina)\b/))) return +m[1] * 30 * DAY;
+  if (/\bnext week\b|\bagle hafte\b/.test(s)) return 7 * DAY;
+  if (/\bnext month\b|\bagle mah/.test(s)) return 30 * DAY;
+  return null;
+}
+const CONTACT_LATER = /\b(contact|call|reach|connect|ping|remind|message|msg|text|talk|callback|call ?back|get ?back|follow ?up|baat|sampark)\b/i;
+const LATER_CUE = /\b(later|after|back|baad|tomorrow|kal|parso|next week|next month|agle|free|busy|abhi nahi|abhi nhi|not now|some other time|few days|kuch din)\b/i;
+function detectFollowUp(t) {
+  const ms = parseDelayMs(t);
+  const wantsLater = (CONTACT_LATER.test(t) && (LATER_CUE.test(t) || ms != null))
+    || /\b(i am busy|i'?m busy|abhi busy|thodi der baad|baad me (baat|call|contact)|contact me later|call me later|message me later|talk later)\b/i.test(t);
+  if (!wantsLater) return null;
+  return { ms: ms ?? 3 * DAY };
+}
+function fmtDelay(ms) {
+  if (ms >= 30 * DAY) return `in about ${Math.round(ms / (30 * DAY))} month(s)`;
+  if (ms >= 7 * DAY) return `in about ${Math.round(ms / (7 * DAY))} week(s)`;
+  if (ms >= DAY) return `in ${Math.round(ms / DAY)} day(s)`;
+  return `in about ${Math.max(1, Math.round(ms / HOUR))} hour(s)`;
+}
+async function scheduleFollowUp(sock, jid, lead, ms) {
+  const when = new Date(Date.now() + ms);
+  await say(sock, jid, lead,
+    `No problem, ${C.nameOf(lead)}! 😊 We'll follow up with you ${fmtDelay(ms)}. ` +
+    `If you'd like to continue sooner, just message us anytime.`);
+  console.log(`[flow] ⏰ +${lead.whatsapp_number} follow-up scheduled ${fmtDelay(ms)}`);
+  return updateLeadFields(lead.id, { follow_up_date: when.toISOString(), follow_up_sent: false });
 }
 
 // Send the welcome + course menu and arm the flow. Used both on a student's
@@ -210,16 +254,25 @@ export async function handleFlowMessage(ctx, lead) {
   // Global: explicit opt-out / not-interested at any point.
   if (isNotInterested(t)) return goNotInterested(sock, jid, lead, t);
 
+  // A reply means they're engaging → cancel any pending scheduled follow-up.
+  if (lead.follow_up_date && !lead.follow_up_sent) {
+    lead = await updateLeadFields(lead.id, { follow_up_date: null });
+  }
+
+  // "Contact me after 4 days" / "call me later" → schedule an auto follow-up.
+  const fu = detectFollowUp(t);
+  if (fu) return scheduleFollowUp(sock, jid, lead, fu.ms);
+
   // First contact (or a fresh restart) → welcome + course menu, then wait.
   if (!lead.flow_step || lead.flow_step === 'not_interested') {
     await startFlow(sock, jid, lead);
     return;
   }
 
-  // Completed conversation, student messages again → reopen the expert menu.
+  // Completed conversation → treat as the expert menu so further questions are
+  // still answered (via the menu match / AI fallback below) instead of ignored.
   if (lead.flow_step === 'completed') {
-    await sendMenu(sock, jid, lead, 'Welcome back! Would you like to continue?', actionMenu(await cat.getActiveCounsellors()));
-    return updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
+    lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
   }
 
   // ── free-text steps (Other course/state/college) ──
@@ -312,7 +365,7 @@ export async function handleFlowMessage(ctx, lead) {
         console.log(`[flow] 📞 +${number} callback requested → ${c?.name ?? 'unassigned'}`);
         return updateLeadFields(lead.id, {
           flow_step: 'completed', flow_status: 'Callback Requested',
-          assigned_counsellor_id: c?.id ?? null, needs_human: true,
+          assigned_counsellor_id: c?.id ?? null,
           reminder_8h_sent: true, reminder_24h_sent: true,
         });
       }

@@ -13,11 +13,9 @@ const ENABLED = process.env.FLOW_AI_FALLBACK !== '0' && !!config.groqApiKey;
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 
-// A real question worth answering: ends with "?", or a multi-word sentence.
+// Worth answering with AI: anything that isn't empty / a stray single char.
 export function looksLikeQuestion(text) {
-  const t = (text || '').trim();
-  if (!t) return false;
-  return t.endsWith('?') || t.split(/\s+/).length >= 3;
+  return (text || '').trim().length >= 2;
 }
 
 async function selectionContext(lead) {
@@ -33,16 +31,21 @@ async function selectionContext(lead) {
 export async function answerFreeText(lead, text) {
   if (!ENABLED || !looksLikeQuestion(text)) return null;
   try {
-    const courses = (await cat.getActiveCourses()).slice(0, 12).map((c) => c.name).join(', ');
+    const courses = (await cat.getActiveCourses()).slice(0, 14).map((c) => c.name).join(', ');
     const system =
-      `You are a friendly admission counselling assistant for SkyHigh Educational Services Pvt. Ltd., ` +
-      `an Indian college-admission consultancy. A student is on WhatsApp choosing a course, state and ` +
-      `college through a menu. Answer their message briefly (1-3 short sentences), warmly, and in the ` +
-      `SAME language they use (English / Hindi / Hinglish). Do NOT invent specific fees, cut-offs, ` +
-      `rankings or seat numbers — if asked for exact figures, say our Career Expert will confirm the ` +
-      `latest details. Gently guide them to continue selecting from the menu.\n` +
-      `Available course options include: ${courses}.\n` +
-      `Student's current selection: ${await selectionContext(lead)}.`;
+      `You are a warm, helpful WhatsApp assistant for SkyHigh Educational Services Pvt. Ltd., an Indian ` +
+      `college-admission consultancy. Students reach us to pick a course, state and college and to get ` +
+      `admission guidance (eligibility, admission process, documents, scholarships, fees, placements, ` +
+      `hostel, career options, and general questions about our services). Answer ANY question they ask ` +
+      `— including general consultancy, greetings, "who are you", or off-topic-but-related queries — ` +
+      `briefly (1-3 short sentences), warmly, and in the SAME language they use (English / Hindi / ` +
+      `Hinglish). If they greet, greet back. Do NOT invent specific fees, cut-offs, rankings or seat ` +
+      `numbers for a particular college — for exact figures say our Career Expert will share the latest ` +
+      `verified details. After answering, gently nudge them to continue by choosing from the menu, or to ` +
+      `type "Counselor" to talk to a human expert. Never say you cannot help.\n` +
+      `Course options we offer include: ${courses}.\n` +
+      `Career Experts: Prakash Sir and Supriya Mam.\n` +
+      `Student's current selection so far: ${await selectionContext(lead)}.`;
 
     const res = await fetch(GROQ_URL, {
       method: 'POST',
