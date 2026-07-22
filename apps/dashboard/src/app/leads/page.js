@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase';
 import { DEMO, demoLeads } from '../../lib/demo';
 import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor, leadScore, leadTemp, TEMP_CLS } from '../../lib/catalogNames';
 import TopBar from '../../components/TopBar';
+import LeadImport from '../../components/LeadImport';
 
 const initials = (n) => (n || '??').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 const timeAgo = (iso) => {
@@ -35,6 +36,7 @@ export default function Leads() {
   const [humanOnly, setHumanOnly] = useState(false);
   const [since, setSince] = useState('');
   const [q, setQ] = useState('');
+  const [showImport, setShowImport] = useState(false);
 
   const load = useCallback(async () => {
     if (DEMO) { setLeads(demoLeads); return; }
@@ -71,7 +73,11 @@ export default function Leads() {
   return (
     <div>
       <TopBar />
-      <div className="pagehead"><h1>Leads</h1><span className="sub">{rows.length} of {leads?.length ?? 0} students</span></div>
+      <div className="pagehead" style={{ display: 'flex', alignItems: 'flex-start' }}>
+        <div><h1 style={{ margin: 0 }}>Leads</h1><span className="sub">{rows.length} of {leads?.length ?? 0} students</span></div>
+        <button className="btn" style={{ marginLeft: 'auto' }} onClick={() => setShowImport(true)}>+ Add leads</button>
+      </div>
+      <LeadImport open={showImport} onClose={() => setShowImport(false)} onDone={load} />
       <div className="card">
         <div className="filters">
           <input type="text" placeholder="Search name / number…" value={q} onChange={(e) => setQ(e.target.value)} />
