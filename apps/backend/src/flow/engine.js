@@ -161,10 +161,24 @@ async function goToCollegeStep(sock, jid, lead, { resetPage = true } = {}) {
   return updateLeadFields(lead.id, { flow_step: 'awaiting_college' });
 }
 
+// A short standalone greeting ("hi", "hello", "namaste", "assalamualaikum"…).
+function isGreeting(t) {
+  const s = String(t || '').toLowerCase().replace(/[^a-z ]/g, '').trim();
+  if (!s || s.split(/\s+/).length > 3) return false;
+  return /^(hi+|hey+|h[ae]llo+|helo|hii+|yo|namaste|namaskar|salaam|salam|assalam\w*|walaikum\w*|hola|start|hlo|good (morning|afternoon|evening|noon)|gm|gud (morning|evening)|shubh)/.test(s);
+}
+
 async function invalid(sock, jid, lead, text) {
-  // Always try to answer the free-text with AI first, then re-show the current
-  // step — so general/off-flow questions get a real answer and typos never hit
-  // a dead-end. The bot never goes silent while AI is available.
+  // A returning lead just saying "hi" gets a personalized welcome-back + their
+  // current step (not a generic AI "welcome" that feels like a restart).
+  if (isGreeting(text)) {
+    lead = await updateLeadFields(lead.id, { unrecognized_count: 0 });
+    await say(sock, jid, lead, `Hi ${C.nameOf(lead)}! 👋 Welcome back — let's continue where we left off.`);
+    return resendStep(sock, jid, lead);
+  }
+  // Otherwise try to answer the free-text with AI first, then re-show the
+  // current step — so general/off-flow questions get a real answer and typos
+  // never hit a dead-end. The bot never goes silent while AI is available.
   const aiAnswer = await answerFreeText(lead, text);
   if (aiAnswer) {
     lead = await updateLeadFields(lead.id, { unrecognized_count: 0 });
@@ -197,27 +211,60 @@ function parseDelayMs(s) {
   if (/\bnext month\b|\bagle mah/.test(s)) return 30 * DAY;
   return null;
 }
+// Absolute dates: "4 sep", "sep 4", "4th september", "on Monday", "4 tarikh".
+const M3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const WD = { sunday: 0, sun: 0, monday: 1, mon: 1, tuesday: 2, tue: 2, tues: 2, wednesday: 3, wed: 3, thursday: 4, thu: 4, thurs: 4, friday: 5, fri: 5, saturday: 6, sat: 6 };
+function parseAbsoluteMs(s) {
+  s = s.toLowerCase();
+  const now = new Date();
+  const wm = s.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tues?|wed|thu(?:rs?)?|fri|sat)\b/);
+  if (wm && /\b(on|next|by|this|call|contact|reach|connect|back|baat|karna|karo)\b/.test(s)) {
+    const d = new Date(now); let add = (WD[wm[1]] - d.getDay() + 7) % 7; if (add === 0) add = 7;
+    d.setDate(d.getDate() + add); d.setHours(11, 0, 0, 0);
+    return d - now;
+  }
+  const mm = s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b/);
+  if (mm) {
+    const monIdx = M3.indexOf(mm[1]);
+    const dm = s.match(/\b(\d{1,2})\s*(?:st|nd|rd|th|tarikh|tareekh)?\b/);
+    const day = dm ? +dm[1] : 1;
+    if (monIdx >= 0 && day >= 1 && day <= 31) {
+      let target = new Date(now.getFullYear(), monIdx, day, 11, 0, 0, 0);
+      if (target.getTime() < now.getTime() - HOUR) target = new Date(now.getFullYear() + 1, monIdx, day, 11, 0, 0, 0);
+      return target - now;
+    }
+  }
+  const tk = s.match(/\b(\d{1,2})\s*(?:tarikh|tareekh)\b/);
+  if (tk) {
+    const day = +tk[1];
+    if (day >= 1 && day <= 31) {
+      let target = new Date(now.getFullYear(), now.getMonth(), day, 11, 0, 0, 0);
+      if (target.getTime() < now.getTime() - HOUR) target = new Date(now.getFullYear(), now.getMonth() + 1, day, 11, 0, 0, 0);
+      return target - now;
+    }
+  }
+  return null;
+}
+const parseFollowUpMs = (t) => parseDelayMs(t) ?? parseAbsoluteMs(t);
+
 const CONTACT_LATER = /\b(contact|call|reach|connect|ping|remind|message|msg|text|talk|callback|call ?back|get ?back|follow ?up|baat|sampark)\b/i;
 const LATER_CUE = /\b(later|after|back|baad|tomorrow|kal|parso|next week|next month|agle|free|busy|abhi nahi|abhi nhi|not now|some other time|few days|kuch din)\b/i;
 function detectFollowUp(t) {
-  const ms = parseDelayMs(t);
+  const ms = parseFollowUpMs(t);
   const wantsLater = (CONTACT_LATER.test(t) && (LATER_CUE.test(t) || ms != null))
     || /\b(i am busy|i'?m busy|abhi busy|thodi der baad|baad me (baat|call|contact)|contact me later|call me later|message me later|talk later)\b/i.test(t);
   if (!wantsLater) return null;
   return { ms: ms ?? 3 * DAY };
 }
-function fmtDelay(ms) {
-  if (ms >= 30 * DAY) return `in about ${Math.round(ms / (30 * DAY))} month(s)`;
-  if (ms >= 7 * DAY) return `in about ${Math.round(ms / (7 * DAY))} week(s)`;
-  if (ms >= DAY) return `in ${Math.round(ms / DAY)} day(s)`;
-  return `in about ${Math.max(1, Math.round(ms / HOUR))} hour(s)`;
-}
 async function scheduleFollowUp(sock, jid, lead, ms) {
   const when = new Date(Date.now() + ms);
+  const whenStr = when.toLocaleString('en-IN', {
+    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata',
+  });
   await say(sock, jid, lead,
-    `No problem, ${C.nameOf(lead)}! 😊 We'll follow up with you ${fmtDelay(ms)}. ` +
+    `No problem, ${C.nameOf(lead)}! 😊 We'll follow up with you on ${whenStr}. ` +
     `If you'd like to continue sooner, just message us anytime.`);
-  console.log(`[flow] ⏰ +${lead.whatsapp_number} follow-up scheduled ${fmtDelay(ms)}`);
+  console.log(`[flow] ⏰ +${lead.whatsapp_number} follow-up scheduled for ${when.toISOString()}`);
   return updateLeadFields(lead.id, {
     follow_up_date: when.toISOString(), follow_up_sent: false,
     // Suppress the generic 8h/24h reminders — the follow-up fires at the exact
