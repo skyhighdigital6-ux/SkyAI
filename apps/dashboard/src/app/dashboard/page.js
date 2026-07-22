@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { backendApi } from '../../lib/backendApi';
-import { DEMO, demoLeads, demoMessages, demoKb, demoQuota, STAGE_META } from '../../lib/demo';
+import { DEMO, demoLeads, demoMessages, demoQuota, STAGE_META } from '../../lib/demo';
 import TopBar from '../../components/TopBar';
 import { Ic } from '../../components/Icons';
 
@@ -28,8 +28,7 @@ export default function Dashboard() {
   const [selId, setSelId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [quota, setQuota] = useState(DEMO ? demoQuota : null);
-  const [kbCountries, setKbCountries] = useState(DEMO ? demoKb.kb_countries : []);
-  const [kbTab, setKbTab] = useState('Countries');
+  const [catalog, setCatalog] = useState({ courses: 0, states: 0, colleges: 0 });
   const [temp, setTemp] = useState('');
   const [stage, setStage] = useState('');
   const [human, setHuman] = useState('');
@@ -42,7 +41,11 @@ export default function Dashboard() {
     const { data } = await supabase.from('leads').select('*').order('lead_score', { ascending: false });
     setLeads(data ?? []);
     backendApi('/quota').then(setQuota).catch(() => {});
-    supabase.from('kb_countries').select('*').eq('is_active', true).then(({ data: kc }) => setKbCountries(kc ?? []));
+    Promise.all([
+      supabase.from('courses').select('id', { count: 'exact', head: true }),
+      supabase.from('states').select('id', { count: 'exact', head: true }),
+      supabase.from('colleges').select('id', { count: 'exact', head: true }),
+    ]).then(([c, s, g]) => setCatalog({ courses: c.count ?? 0, states: s.count ?? 0, colleges: g.count ?? 0 }));
   }, []);
 
   useEffect(() => {
@@ -180,24 +183,13 @@ export default function Dashboard() {
 
           <div className="grid-2">
             <div className="card">
-              <h3>Knowledge Base Preview <span className="linky" style={{ float: 'right' }} onClick={() => router.push('/kb')}>View all →</span></h3>
-              <div className="tabs">
-                {['Countries', 'Courses', 'FAQs', 'Process Steps'].map((t) => (
-                  <button key={t} className={kbTab === t ? 'active' : ''} onClick={() => setKbTab(t)}>{t}</button>
-                ))}
+              <h3>Catalog Preview <span className="linky" style={{ float: 'right' }} onClick={() => router.push('/catalog')}>Manage →</span></h3>
+              <div className="kb-mini">
+                <div className="cell"><b>Courses</b>{catalog.courses}</div>
+                <div className="cell"><b>States</b>{catalog.states}</div>
+                <div className="cell"><b>Colleges</b>{catalog.colleges}</div>
               </div>
-              {kbTab === 'Countries' && kbCountries[0] && (
-                <>
-                  <b>🇷🇺 {kbCountries[0].display_name}</b> <span className="badge st-green">MBBS</span>
-                  <div className="kb-mini">
-                    <div className="cell"><b>Fees (Total)</b>{kbCountries[0].total_fee_range ?? '—'}</div>
-                    <div className="cell"><b>Duration</b>{kbCountries[0].duration ?? '—'}</div>
-                    <div className="cell"><b>Eligibility</b>{kbCountries[0].eligibility ?? '—'}</div>
-                    <div className="cell"><b>Recognition</b>{kbCountries[0].recognition ?? '—'}</div>
-                  </div>
-                </>
-              )}
-              {kbTab !== 'Countries' && <div className="muted">Full editor me dekho — <span className="linky" onClick={() => router.push('/kb')}>Knowledge Base →</span></div>}
+              <div className="muted" style={{ marginTop: 8 }}>Courses, states &amp; colleges shown in the WhatsApp flow.</div>
             </div>
 
             <div className="card">

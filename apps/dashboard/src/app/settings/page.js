@@ -40,7 +40,7 @@ export default function Settings() {
         <div className="setting-row"><span className="avatar sq">1</span><span className="t">Create the Supabase project and run the migration SQL<small>supabase/migrations/0001_initial_schema.sql → SQL Editor</small></span></div>
         <div className="setting-row"><span className="avatar sq">2</span><span className="t">Fill in all keys in .env<small>SUPABASE_URL, SERVICE_ROLE_KEY, ANON_KEY, GEMINI_API_KEY, GROQ_API_KEY</small></span></div>
         <div className="setting-row"><span className="avatar sq">3</span><span className="t">Start the backend and pair WhatsApp<small>Connect WhatsApp page → scan the QR from Linked Devices</small></span></div>
-        <div className="setting-row"><span className="avatar sq">4</span><span className="t">Populate the Knowledge Base with real data<small>Countries, fees, FAQs — via the Knowledge Base editor</small></span></div>
+        <div className="setting-row"><span className="avatar sq">4</span><span className="t">Populate the Catalog with real data<small>Courses, states, colleges & documents — via the Catalog editor</small></span></div>
         <div className="setting-row" style={{ borderBottom: 'none' }}><span className="avatar sq">5</span><span className="t">Add counselor persona examples<small>20–50 real chat transcripts in apps/backend/src/ai/persona.js</small></span></div>
       </div>
 

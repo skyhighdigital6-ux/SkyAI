@@ -13,7 +13,6 @@ const LINKS = [
   { href: '/leads', label: 'Leads', ico: 'users' },
   { href: '/conversations', label: 'Conversations', ico: 'chat' },
   { href: '/catalog', label: 'Catalog', ico: 'grid' },
-  { href: '/kb', label: 'Knowledge Base', ico: 'book' },
   { href: '/documents', label: 'Documents', ico: 'file' },
   { href: '/analytics', label: 'Analytics', ico: 'chart' },
   { href: '/staff', label: 'Staff', ico: 'user' },
