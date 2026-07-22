@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { DEMO, demoLeads } from '../../lib/demo';
-import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor } from '../../lib/catalogNames';
+import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor, leadScore, leadTemp, TEMP_CLS } from '../../lib/catalogNames';
 import TopBar from '../../components/TopBar';
 
 const initials = (n) => (n || '??').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
@@ -86,23 +86,27 @@ export default function Leads() {
         <div style={{ overflowX: 'auto' }}>
           <table>
             <thead><tr>
-              <th>Name</th><th>Number</th><th>Course</th><th>State</th><th>College</th>
-              <th>Counsellor</th><th>Status</th><th>Source</th><th>Last Active</th><th>Needs Human</th><th></th>
+              <th>Name</th><th>Number</th><th>Temperature</th><th>Score</th><th>Stage</th>
+              <th>Course</th><th>State</th><th>College</th><th>Counsellor</th>
+              <th>Source</th><th>Last Active</th><th>Needs Human</th><th></th>
             </tr></thead>
             <tbody>
-              {leads === null && <tr><td colSpan={11} className="muted">Loading…</td></tr>}
-              {rows.length === 0 && leads !== null && <tr><td colSpan={11} className="muted">No leads match.</td></tr>}
+              {leads === null && <tr><td colSpan={13} className="muted">Loading…</td></tr>}
+              {rows.length === 0 && leads !== null && <tr><td colSpan={13} className="muted">No leads match.</td></tr>}
               {rows.map((l) => {
                 const cls = STATUS_CLS[l.flow_status] ?? 'st-gray';
+                const temp = leadTemp(l);
                 return (
                   <tr key={l.id} onClick={() => router.push(`/leads/${l.id}`)}>
                     <td><span className="namecell"><span className="avatar sq">{initials(l.name)}</span>{l.name || '—'}</span></td>
                     <td><span className="numcell"><span className="dot" />+{l.whatsapp_number}</span></td>
+                    <td><span className={`badge ${TEMP_CLS[temp]}`}><span className="b-dot" />{temp}</span></td>
+                    <td><b>{leadScore(l)}</b></td>
+                    <td>{l.flow_status ? <span className={`badge ${cls}`}>{l.flow_status}</span> : '—'}</td>
                     <td>{leadCourse(l, maps)}</td>
                     <td>{leadState(l, maps)}</td>
                     <td>{leadCollege(l, maps)}</td>
                     <td>{leadCounsellor(l, maps)}</td>
-                    <td>{l.flow_status ? <span className={`badge ${cls}`}>{l.flow_status}</span> : '—'}</td>
                     <td className="muted">{l.entry_source ?? '—'}</td>
                     <td>{timeAgo(l.last_active_at)}</td>
                     <td><span className={`badge ${l.needs_human ? 'yes' : 'no'}`}>{l.needs_human ? 'Yes' : 'No'}</span></td>

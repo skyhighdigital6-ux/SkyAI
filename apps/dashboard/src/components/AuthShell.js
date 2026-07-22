@@ -52,7 +52,7 @@ export default function AuthShell({ children }) {
   return (
     <div className="frame">
       <aside className="sidebar">
-        <div className="logo" style={{ padding: '4px 6px 10px' }}>
+        <div className="logo" style={{ padding: '4px 6px 10px', justifyContent: 'center' }}>
           <img src="/logo.png" alt="SkyHigh Educational Services" style={{ width: '100%', maxWidth: 96, display: 'block' }} />
         </div>
         {LINKS.map((l) => (

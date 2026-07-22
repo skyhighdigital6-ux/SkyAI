@@ -5,15 +5,22 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '../../../lib/supabase';
 import { backendApi } from '../../../lib/backendApi';
-import { DEMO, demoLeads, demoMessages, STAGE_META } from '../../../lib/demo';
+import { DEMO, demoLeads, demoMessages } from '../../../lib/demo';
+import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor, leadScore, leadTemp, TEMP_CLS } from '../../../lib/catalogNames';
 import TopBar from '../../../components/TopBar';
 
-const TEMP_BADGE = { Hot: ['hot', '🔴 Hot'], Warm: ['warm', '🟡 Warm'], Cold: ['cold', '⚪ Cold'] };
+const STATUS_CLS = {
+  'New Lead': 'st-blue', 'Course Selected': 'st-blue', 'State Selected': 'st-teal',
+  'College Selected': 'st-teal', 'Documents Shared': 'st-purple', 'Guidance Completed': 'st-green',
+  'Callback Requested': 'st-amber', 'Human Assistance Required': 'st-red',
+  'Counselor Assigned': 'st-amber', 'Not Interested': 'st-gray',
+};
 
 export default function LeadDetail() {
   const { id } = useParams();
   const router = useRouter();
   const [lead, setLead] = useState(null);
+  const [maps, setMaps] = useState({ courses: {}, states: {}, colleges: {}, counsellors: {} });
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState('');
@@ -39,6 +46,8 @@ export default function LeadDetail() {
     const t = setInterval(load, 5000);
     return () => clearInterval(t);
   }, [load]);
+
+  useEffect(() => { if (!DEMO) fetchCatalogMaps().then(setMaps); }, []);
 
   async function action(name, fn) {
     setBusy(name);
@@ -89,15 +98,15 @@ export default function LeadDetail() {
   };
 
   if (!lead) return <div className="muted">Loading…</div>;
-  const [cls, label] = TEMP_BADGE[lead.lead_temperature] ?? TEMP_BADGE.Cold;
+  const temp = leadTemp(lead);
 
   return (
     <div>
       <TopBar />
       <h1>
         {lead.name || `+${lead.whatsapp_number}`}{' '}
-        <span className={`badge ${cls}`}>{label} · {lead.lead_score}</span>{' '}
-        <span className={`badge ${STAGE_META[lead.current_stage]?.cls ?? "st-gray"}`}>{STAGE_META[lead.current_stage]?.label ?? lead.current_stage}</span>{' '}
+        <span className={`badge ${TEMP_CLS[temp]}`}>{temp} · {leadScore(lead)}</span>{' '}
+        {lead.flow_status && <span className={`badge ${STATUS_CLS[lead.flow_status] ?? 'st-gray'}`}>{lead.flow_status}</span>}{' '}
         {lead.needs_human && <span className="badge human">🙋 human handling</span>}
       </h1>
       {error && <div className="banner red">{error}</div>}
@@ -106,14 +115,15 @@ export default function LeadDetail() {
         <div className="card profile">
           <dl>
             <dt>WhatsApp</dt><dd>+{lead.whatsapp_number}</dd>
-            <dt>Country / Course</dt><dd>{[lead.interested_country, lead.interested_course].filter(Boolean).join(' / ') || '—'}</dd>
-            <dt>NEET status</dt><dd>{lead.neet_status || '—'}</dd>
-            <dt>Academics</dt><dd>{lead.academic_details || '—'}</dd>
-            <dt>Budget</dt><dd>{lead.budget_range || '—'}</dd>
-            <dt>Tone profile</dt>
-            <dd>{lead.tone_profile ? Object.entries(lead.tone_profile).map(([k, v]) => `${k}: ${v}`).join(' · ') : '—'}</dd>
-            <dt>Documents shared</dt>
-            <dd>{lead.documents_shared?.length ? lead.documents_shared.map((d) => d.doc).join(', ') : '—'}</dd>
+            <dt>Status</dt><dd>{lead.flow_status || '—'}</dd>
+            <dt>Course</dt><dd>{leadCourse(lead, maps)}</dd>
+            <dt>State</dt><dd>{leadState(lead, maps)}</dd>
+            <dt>College</dt><dd>{leadCollege(lead, maps)}</dd>
+            <dt>Counsellor</dt><dd>{leadCounsellor(lead, maps)}</dd>
+            <dt>Source</dt><dd>{lead.entry_source || '—'}</dd>
+            <dt>Documents sent</dt>
+            <dd>{lead.flow_documents_sent?.length ? lead.flow_documents_sent.map((d) => d.type).join(', ') : '—'}</dd>
+            <dt>Last active</dt><dd>{lead.last_active_at ? new Date(lead.last_active_at).toLocaleString() : '—'}</dd>
             <dt>Created</dt><dd>{new Date(lead.created_at).toLocaleString()}</dd>
           </dl>
           <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
