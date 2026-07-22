@@ -2,7 +2,7 @@
 :root {
   /* Brand palette from the SkyHigh logo (navy + bright blue). The variable
      names stay "green" so existing rules keep working — the values are blue. */
-  --green: #2563eb; --green-soft: #e9f0fd; --green-dark: #1e3a5f;
+  --green: #1d59a6; --green-soft: #e8eff9; --green-dark: #123f6b;
   --bg: #f4f6fb; --card: #fff; --border: #e6eaf2; --text: #101828;
   --muted: #667085; --red: #ef4444; --red-soft: #feecec;
   --amber: #d97706; --amber-soft: #fdf3dc; --radius: 16px;
@@ -17,7 +17,7 @@ h3 { font-size: 15px; }
 .frame { display: flex; min-height: 100vh; }
 .sidebar { width: 218px; background: #fff; border-right: 1px solid var(--border); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 0; height: 100vh; }
 .sidebar .logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 17px; padding: 4px 10px 18px; }
-.sidebar .logo .mark { width: 36px; height: 36px; border-radius: 10px; background: #1e3a5f; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+.sidebar .logo .mark { width: 36px; height: 36px; border-radius: 10px; background: #123f6b; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 17px; }
 .sidebar .logo small { display: block; font-weight: 500; font-size: 10.5px; color: var(--muted); }
 .sidebar a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; color: #3a4557; font-weight: 500; }
 .sidebar a:hover { background: #eef3fb; }
@@ -42,7 +42,7 @@ h3 { font-size: 15px; }
 .userchip .who { line-height: 1.15; font-size: 13px; font-weight: 700; }
 .userchip .who small { display: block; font-weight: 500; color: var(--muted); }
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--green); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex: none; }
-.avatar.sq { background: #dce8fb; color: #1e3a5f; }
+.avatar.sq { background: #dce8fb; color: #123f6b; }
 
 /* ── Stat cards ── */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
@@ -117,7 +117,7 @@ button.btn.outline-red { background: #fff; color: #b91c1c; border: 1.5px solid #
 .badge.st-red { background: var(--red-soft); color: #b91c1c; }
 .badge.st-gray { background: #f1f5f9; color: #64748b; }
 .badge.stage { background: #dbeafe; color: #1d4ed8; }
-.chip { display: inline-block; background: var(--green-soft); color: #1e3a5f; border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600; margin: 0 6px 6px 0; }
+.chip { display: inline-block; background: var(--green-soft); color: #123f6b; border-radius: 999px; padding: 4px 11px; font-size: 12px; font-weight: 600; margin: 0 6px 6px 0; }
 
 .banner { background: var(--amber-soft); border: 1px solid #fcd34d; color: #92400e; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
 .banner.red { background: var(--red-soft); border-color: #fca5a5; color: #b91c1c; }
