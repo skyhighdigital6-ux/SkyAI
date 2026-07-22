@@ -8,6 +8,7 @@ import { backendApi } from '../../../lib/backendApi';
 import { DEMO, demoLeads, demoMessages } from '../../../lib/demo';
 import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor, leadScore, leadTemp, TEMP_CLS } from '../../../lib/catalogNames';
 import TopBar from '../../../components/TopBar';
+import LeadEdit from '../../../components/LeadEdit';
 
 const STATUS_CLS = {
   'New Lead': 'st-blue', 'Course Selected': 'st-blue', 'State Selected': 'st-teal',
@@ -25,6 +26,7 @@ export default function LeadDetail() {
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
     if (DEMO) {
@@ -130,8 +132,10 @@ export default function LeadDetail() {
             {lead.needs_human
               ? <button className="btn" onClick={resume} disabled={!!busy}>{busy === 'resume' ? '…' : '▶ Resume bot'}</button>
               : <button className="btn" onClick={takeover} disabled={!!busy}>{busy === 'takeover' ? '…' : '✋ Take over'}</button>}
+            <button className="btn secondary" onClick={() => setEditing(true)}>✏️ Edit</button>
             <button className="btn danger" onClick={purge} disabled={!!busy}>Purge data</button>
           </div>
+          <LeadEdit lead={lead} open={editing} onClose={() => setEditing(false)} onSaved={load} />
         </div>
 
         <div className="card">

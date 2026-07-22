@@ -177,6 +177,15 @@ async function invalid(sock, jid, lead, text) {
   return lead;
 }
 
+// Send the welcome + course menu and arm the flow. Used both on a student's
+// first inbound message and when an admin adds a lead and opts to start the
+// conversation proactively.
+export async function startFlow(sock, jid, lead) {
+  await say(sock, jid, lead, C.welcome(lead));
+  await sendMenu(sock, jid, lead, C.coursePrompt, courseMenu(await cat.getActiveCourses()));
+  return updateLeadFields(lead.id, { flow_step: 'awaiting_course', flow_status: 'New Lead', unrecognized_count: 0 });
+}
+
 // ── main entry point ─────────────────────────────────────────────────
 export async function handleFlowMessage(ctx, lead) {
   const { sock, jid, number, text } = ctx;
@@ -203,9 +212,7 @@ export async function handleFlowMessage(ctx, lead) {
 
   // First contact (or a fresh restart) → welcome + course menu, then wait.
   if (!lead.flow_step || lead.flow_step === 'not_interested') {
-    await say(sock, jid, lead, C.welcome(lead));
-    await sendMenu(sock, jid, lead, C.coursePrompt, courseMenu(await cat.getActiveCourses()));
-    await updateLeadFields(lead.id, { flow_step: 'awaiting_course', flow_status: 'New Lead', unrecognized_count: 0 });
+    await startFlow(sock, jid, lead);
     return;
   }
 

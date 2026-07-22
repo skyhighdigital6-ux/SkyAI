@@ -54,14 +54,14 @@ export async function POST(request) {
     const have = new Set((existing ?? []).map((e) => e.whatsapp_number));
     const toInsert = rows.filter((r) => !have.has(r.whatsapp_number));
 
-    let added = 0;
+    let ids = [];
     if (toInsert.length) {
       const { data, error } = await admin.from('leads').insert(toInsert).select('id');
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      added = data.length;
+      ids = data.map((d) => d.id);
     }
-    console.log(`[add-lead] ${staff.full_name} bulk: +${added} added, ${have.size} existing, ${invalid} invalid`);
-    return NextResponse.json({ ok: true, added, skipped: have.size, invalid, total: body.leads.length });
+    console.log(`[add-lead] ${staff.full_name} bulk: +${ids.length} added, ${have.size} existing, ${invalid} invalid`);
+    return NextResponse.json({ ok: true, added: ids.length, skipped: have.size, invalid, total: body.leads.length, ids });
   }
 
   // ── Single ──

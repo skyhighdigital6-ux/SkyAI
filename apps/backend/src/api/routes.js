@@ -7,6 +7,7 @@ import { updateLeadFields, purgeLead } from '../crm/leads.js';
 import { logMessage } from '../crm/messages.js';
 import { getUsage } from '../ai/quota.js';
 import { getSocket, getWaState, disconnectWhatsApp } from '../whatsapp/connection.js';
+import { startFlow } from '../flow/engine.js';
 import { startBulkMessage, getBulkStatus, countRecipients } from '../whatsapp/bulkMessage.js';
 import QRCode from 'qrcode';
 
@@ -44,6 +45,48 @@ apiRoutes.post('/leads/:id/automation', async (req, res) => {
   const paused = !!req.body?.paused;
   await updateLeadFields(lead.id, { automation_paused: paused });
   res.json({ ok: true, automation_paused: paused });
+});
+
+// Proactively start the counselling flow for a lead (admin "start conversation").
+apiRoutes.post('/leads/:id/start', async (req, res) => {
+  const lead = await getLead(req, res);
+  if (!lead) return;
+  if (getWaState().status !== 'connected') return res.status(503).json({ error: 'WhatsApp not connected' });
+  try {
+    await startFlow(getSocket(), `${lead.whatsapp_number}@s.whatsapp.net`, lead);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`[api] start flow failed for +${lead.whatsapp_number}: ${err.message}`);
+    res.status(502).json({ error: `WhatsApp send failed: ${err.message}` });
+  }
+});
+
+// Send the welcome to many freshly-added leads (bulk import). Responds
+// immediately, then sends staggered in the background to avoid WhatsApp rate
+// limits. Only leads that haven't started the flow yet are messaged.
+apiRoutes.post('/leads/start-bulk', async (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.slice(0, 500) : [];
+  if (!ids.length) return res.status(400).json({ error: 'ids required' });
+  if (getWaState().status !== 'connected') return res.status(503).json({ error: 'WhatsApp not connected' });
+  res.json({ ok: true, queued: ids.length });
+
+  (async () => {
+    const sock = getSocket();
+    let sent = 0;
+    for (const id of ids) {
+      try {
+        const { data: lead } = await supabase.from('leads').select('*').eq('id', id).maybeSingle();
+        if (lead && !lead.flow_step && !lead.needs_human && !lead.opted_out) {
+          await startFlow(sock, `${lead.whatsapp_number}@s.whatsapp.net`, lead);
+          sent += 1;
+        }
+      } catch (err) {
+        console.error(`[start-bulk] ${id}: ${err.message}`);
+      }
+      await new Promise((r) => setTimeout(r, 4000)); // ~4s gap between sends
+    }
+    console.log(`[start-bulk] welcome sent to ${sent}/${ids.length} lead(s)`);
+  })();
 });
 
 // Staff sends a WhatsApp message to the lead via Baileys.
