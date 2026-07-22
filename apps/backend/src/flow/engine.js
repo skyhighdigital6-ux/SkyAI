@@ -218,7 +218,34 @@ async function scheduleFollowUp(sock, jid, lead, ms) {
     `No problem, ${C.nameOf(lead)}! 😊 We'll follow up with you ${fmtDelay(ms)}. ` +
     `If you'd like to continue sooner, just message us anytime.`);
   console.log(`[flow] ⏰ +${lead.whatsapp_number} follow-up scheduled ${fmtDelay(ms)}`);
-  return updateLeadFields(lead.id, { follow_up_date: when.toISOString(), follow_up_sent: false });
+  return updateLeadFields(lead.id, {
+    follow_up_date: when.toISOString(), follow_up_sent: false,
+    // Suppress the generic 8h/24h reminders — the follow-up fires at the exact
+    // time the student asked for instead. The follow-up sweep re-arms reminders
+    // when it re-engages them.
+    reminder_8h_sent: true, reminder_24h_sent: true,
+  });
+}
+
+// A lead is "returning" if the bot has messaged them before — used to greet by
+// name and resume instead of replaying the full first-time welcome.
+async function hasBotHistory(leadId) {
+  const { count } = await supabase.from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('lead_id', leadId).eq('sender', 'bot');
+  return (count || 0) > 0;
+}
+
+// Welcome a returning lead back by name and resume from their saved context
+// (course → state → college → expert menu) rather than restarting the flow.
+async function resumeReturning(sock, jid, lead) {
+  await say(sock, jid, lead, `Hi ${C.nameOf(lead)}! 👋 Welcome back to SkyHigh Educational Services — let's continue where we left off.`);
+  let step = 'awaiting_course';
+  if (lead.selected_college_id || lead.other_college) step = 'awaiting_action';
+  else if (lead.selected_state_id || lead.other_state) step = 'awaiting_college';
+  else if (lead.selected_course_id || lead.other_course) step = 'awaiting_state';
+  lead = await updateLeadFields(lead.id, { flow_step: step, unrecognized_count: 0 });
+  return resendStep(sock, jid, lead);
 }
 
 // Send the welcome + course menu and arm the flow. Used both on a student's
@@ -263,8 +290,10 @@ export async function handleFlowMessage(ctx, lead) {
   const fu = detectFollowUp(t);
   if (fu) return scheduleFollowUp(sock, jid, lead, fu.ms);
 
-  // First contact (or a fresh restart) → welcome + course menu, then wait.
+  // No active step: full welcome for a brand-new contact, but a returning lead
+  // (we've messaged them before) gets greeted by name and resumed from context.
   if (!lead.flow_step || lead.flow_step === 'not_interested') {
+    if (await hasBotHistory(lead.id)) return resumeReturning(sock, jid, lead);
     await startFlow(sock, jid, lead);
     return;
   }
