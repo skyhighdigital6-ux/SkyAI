@@ -4,7 +4,7 @@ import AuthShell from '../components/AuthShell';
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' });
 
-export const metadata = { title: 'Sky High — WhatsApp CRM' };
+export const metadata = { title: 'SkyHigh Educational Services — WhatsApp CRM' };
 
 export default function RootLayout({ children }) {
   return (

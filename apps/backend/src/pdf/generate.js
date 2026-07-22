@@ -14,7 +14,7 @@ const LOGO_PATH = join(dirname(fileURLToPath(import.meta.url)), 'assets', 'skyai
 
 // ── Branding (single place to edit before launch) ────────────────────
 const BRAND = {
-  name: 'Sky High Career Consultancy',
+  name: 'SkyHigh Educational Services Private Limited',
   tagline: 'Your Trusted Partner for Abroad Medical Studies',
   address: '2nd Floor, Nirmaan Complex, Baghat, Srinagar, Jammu and Kashmir 190005',
   phone: '091231 37500',

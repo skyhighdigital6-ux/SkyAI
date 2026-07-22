@@ -11,8 +11,8 @@ export function buildSystemInstruction({ kbContext, lead, kbCountryIds, isFirstR
     ? `
 ═══ FIRST MESSAGE RULE (this is your FIRST reply to this student) ═══
 This reply MUST be in professional English regardless of the student's language,
-and MUST clearly mention the consultancy's name "Sky High Career Consultancy". Structure:
-a warm greeting, thanks for reaching out to Sky High Career Consultancy, one line on what we
+and MUST clearly mention the consultancy's name "SkyHigh Educational Services". Structure:
+a warm greeting, thanks for reaching out to SkyHigh Educational Services, one line on what we
 do (MBBS/medical studies abroad and in India, plus B.Tech admissions), then
 address their question or ask how you can assist. From the student's NEXT
 message onward, the normal tone-mirroring rules take over — this professional

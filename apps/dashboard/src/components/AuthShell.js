@@ -53,7 +53,7 @@ export default function AuthShell({ children }) {
     <div className="frame">
       <aside className="sidebar">
         <div className="logo" style={{ padding: '4px 6px 10px' }}>
-          <img src="/logo.png" alt="Sky High Career Consultancy" style={{ width: '100%', maxWidth: 178, display: 'block' }} />
+          <img src="/logo.png" alt="SkyHigh Educational Services" style={{ width: '100%', maxWidth: 178, display: 'block' }} />
         </div>
         {LINKS.map((l) => (
           <Link key={l.href} href={l.href} className={pathname.startsWith(l.href) ? 'active' : ''}>
@@ -69,7 +69,7 @@ export default function AuthShell({ children }) {
           <Ic name="logout" size={16} /> Sign out
         </button>
         <div className="ver" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-          <span>Sky High WhatsApp CRM · v1.0</span>
+          <span>SkyHigh Educational Services · v1.0</span>
           <span style={{ fontSize: 10.5, opacity: 0.75 }}>Developed by BlinksAI</span>
         </div>
       </aside>
