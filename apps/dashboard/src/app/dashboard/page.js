@@ -5,11 +5,17 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { backendApi } from '../../lib/backendApi';
-import { DEMO, demoLeads, demoMessages, demoQuota, STAGE_META } from '../../lib/demo';
+import { DEMO, demoLeads, demoMessages, demoQuota } from '../../lib/demo';
+import { fetchCatalogMaps, leadCourse, leadState, leadCollege, leadCounsellor } from '../../lib/catalogNames';
 import TopBar from '../../components/TopBar';
 import { Ic } from '../../components/Icons';
 
-const TEMP = { Hot: 'hot', Warm: 'warm', Cold: 'cold' };
+const STATUS_CLS = {
+  'New Lead': 'st-blue', 'Course Selected': 'st-blue', 'State Selected': 'st-teal',
+  'College Selected': 'st-teal', 'Documents Shared': 'st-purple', 'Guidance Completed': 'st-green',
+  'Callback Requested': 'st-amber', 'Human Assistance Required': 'st-red', 'Not Interested': 'st-gray',
+};
+
 const initials = (n) => (n || '??').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
 const timeAgo = (iso) => {
   const m = Math.floor((Date.now() - new Date(iso)) / 60000);
@@ -19,8 +25,6 @@ const timeAgo = (iso) => {
   return m < 2880 ? 'Yesterday' : `${Math.floor(m / 1440)}d ago`;
 };
 const hhmm = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const COUNTRY_LABEL = { russia: 'Russia', georgia: 'Georgia', kyrgyzstan: 'Kyrgyzstan', philippines: 'Philippines' };
-const BUDGET_LABEL = { under_15L: 'Under ₹15 lakh', '15L_25L': '₹15–25 lakh', '25L_40L': '₹25–40 lakh', above_40L: 'Above ₹40 lakh' };
 
 export default function Dashboard() {
   const router = useRouter();
@@ -29,8 +33,8 @@ export default function Dashboard() {
   const [messages, setMessages] = useState([]);
   const [quota, setQuota] = useState(DEMO ? demoQuota : null);
   const [catalog, setCatalog] = useState({ courses: 0, states: 0, colleges: 0 });
-  const [temp, setTemp] = useState('');
-  const [stage, setStage] = useState('');
+  const [maps, setMaps] = useState({ courses: {}, states: {}, colleges: {}, counsellors: {} });
+  const [status, setStatus] = useState('');
   const [human, setHuman] = useState('');
 
   const load = useCallback(async () => {
@@ -46,6 +50,7 @@ export default function Dashboard() {
       supabase.from('states').select('id', { count: 'exact', head: true }),
       supabase.from('colleges').select('id', { count: 'exact', head: true }),
     ]).then(([c, s, g]) => setCatalog({ courses: c.count ?? 0, states: s.count ?? 0, colleges: g.count ?? 0 }));
+    fetchCatalogMaps().then(setMaps);
   }, []);
 
   useEffect(() => {
@@ -62,10 +67,9 @@ export default function Dashboard() {
   }, [leads, selId]);
 
   const filtered = useMemo(() => leads.filter((l) =>
-    (!temp || l.lead_temperature === temp) &&
-    (!stage || l.current_stage === stage) &&
+    (!status || l.flow_status === status) &&
     (!human || String(l.needs_human) === human)
-  ), [leads, temp, stage, human]);
+  ), [leads, status, human]);
 
   const sel = leads.find((l) => l.id === selId);
   const count = (fn) => leads.filter(fn).length;
@@ -111,38 +115,32 @@ export default function Dashboard() {
           <div className="table-chat">
           <div className="card">
             <div className="filters">
-              <select value={temp} onChange={(e) => setTemp(e.target.value)}>
-                <option value="">Temperature</option><option>Hot</option><option>Warm</option><option>Cold</option>
-              </select>
-              <select value={stage} onChange={(e) => setStage(e.target.value)}>
-                <option value="">Stage</option>
-                {Object.entries(STAGE_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              <select value={status} onChange={(e) => setStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {Object.keys(STATUS_CLS).map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               <select value={human} onChange={(e) => setHuman(e.target.value)}>
                 <option value="">Needs Human</option><option value="true">Yes</option><option value="false">No</option>
               </select>
               <input type="date" />
-              <span className="sortnote">Sorted by <b>Hot leads first</b> ⇅</span>
+              <span className="sortnote">Sorted by <b>most recent</b> ⇅</span>
             </div>
             <div style={{ overflowX: 'auto' }}>
               <table>
-                <thead><tr><th>Name</th><th>Number</th><th>Temperature</th><th>Score</th><th>Stage</th><th>Interested Country/Course</th><th>Last Active</th><th>Needs Human</th></tr></thead>
+                <thead><tr><th>Name</th><th>Number</th><th>Course</th><th>State</th><th>College</th><th>Status</th><th>Last Active</th><th>Needs Human</th></tr></thead>
                 <tbody>
-                  {filtered.map((l) => {
-                    const st = STAGE_META[l.current_stage] ?? { label: l.current_stage, cls: 'st-gray' };
-                    return (
+                  {filtered.map((l) => (
                       <tr key={l.id} className={l.id === selId ? 'sel' : ''} onClick={() => setSelId(l.id)}>
                         <td><span className="namecell"><span className="avatar sq">{initials(l.name)}</span>{l.name || '—'}</span></td>
                         <td><span className="numcell"><span className="dot" />+{l.whatsapp_number}</span></td>
-                        <td><span className={`badge ${TEMP[l.lead_temperature]}`}><span className="b-dot" />{l.lead_temperature}</span></td>
-                        <td><b>{l.lead_score}</b></td>
-                        <td><span className={`badge ${st.cls}`}>{st.label}</span></td>
-                        <td>{COUNTRY_LABEL[l.interested_country] ?? '—'}{l.interested_course ? ` – ${l.interested_course.toUpperCase()}` : ''}</td>
+                        <td>{leadCourse(l, maps)}</td>
+                        <td>{leadState(l, maps)}</td>
+                        <td>{leadCollege(l, maps)}</td>
+                        <td>{l.flow_status ? <span className={`badge ${STATUS_CLS[l.flow_status] ?? 'st-gray'}`}>{l.flow_status}</span> : '—'}</td>
                         <td>{timeAgo(l.last_active_at)}</td>
                         <td><span className={`badge ${l.needs_human ? 'yes' : 'no'}`}>{l.needs_human ? 'Yes' : 'No'}</span></td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -231,14 +229,12 @@ export default function Dashboard() {
                   <span className="avatar sq">{initials(sel.name)}</span>
                   <b>{sel.name} ✓</b> <span style={{ color: '#16a34a' }}>●</span>
                 </div>
-                <div className="kv"><span>Current Stage</span><b><span className={`badge ${STAGE_META[sel.current_stage]?.cls ?? 'st-gray'}`}>{STAGE_META[sel.current_stage]?.label ?? sel.current_stage}</span></b></div>
-                <div className="kv"><span>Interested Country</span><b>{COUNTRY_LABEL[sel.interested_country] ?? '—'}</b></div>
-                <div className="kv"><span>Interested Course</span><b>{sel.interested_course?.toUpperCase() ?? '—'}</b></div>
-                <div className="kv"><span>NEET Status</span><b>{sel.neet_status ?? '—'}</b></div>
-                <div className="kv"><span>Academic Details</span><b>{sel.academic_details ?? '—'}</b></div>
-                <div className="kv"><span>Budget Range</span><b>{BUDGET_LABEL[sel.budget_range] ?? '—'}</b></div>
-                <div className="kv"><span>Lead Score</span><b><span className="badge no">{sel.lead_score} / 100</span></b></div>
-                <div className="kv"><span>Lead Temperature</span><b><span className={`badge ${TEMP[sel.lead_temperature]}`}><span className="b-dot" />{sel.lead_temperature}</span></b></div>
+                <div className="kv"><span>Status</span><b>{sel.flow_status ? <span className={`badge ${STATUS_CLS[sel.flow_status] ?? 'st-gray'}`}>{sel.flow_status}</span> : '—'}</b></div>
+                <div className="kv"><span>Course</span><b>{leadCourse(sel, maps)}</b></div>
+                <div className="kv"><span>State</span><b>{leadState(sel, maps)}</b></div>
+                <div className="kv"><span>College</span><b>{leadCollege(sel, maps)}</b></div>
+                <div className="kv"><span>Counsellor</span><b>{leadCounsellor(sel, maps)}</b></div>
+                <div className="kv"><span>Source</span><b>{sel.entry_source ?? '—'}</b></div>
                 <div className="kv"><span>Needs Human</span><b><span className={`badge ${sel.needs_human ? 'yes' : 'no'}`}>{sel.needs_human ? 'Yes' : 'No'}</span></b></div>
                 <div className="kv"><span>Last Active</span><b>{timeAgo(sel.last_active_at)}</b></div>
               </div>
