@@ -13,11 +13,14 @@ import {
   Browsers,
 } from '@whiskeysockets/baileys';
 import { rm } from 'fs/promises';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import qrcode from 'qrcode-terminal';
 import QRCode from 'qrcode';
 import pino from 'pino';
 import { config } from '../config.js';
 import { onIncomingMessages } from './incoming.js';
+import { restoreSession, backupSession, clearRemoteSession } from './sessionStore.js';
 
 // Baileys is chatty; keep its internal logs quiet by default and do our own.
 // Set BAILEYS_LOG_LEVEL=warn|info|debug to surface protocol/decrypt errors.
@@ -44,6 +47,7 @@ export function getWaState() {
 
 async function clearSession() {
   await rm(config.baileysSessionPath, { recursive: true, force: true });
+  await clearRemoteSession();
 }
 
 // Restart guard — several code paths (logout, loggedOut close, errors) can
@@ -77,6 +81,13 @@ export async function disconnectWhatsApp() {
 }
 
 export async function startWhatsApp() {
+  // Cold boot (fresh container, no local creds) → restore the session from
+  // Supabase so a redeploy/crash doesn't force a re-scan. On in-process
+  // reconnects the local folder already exists, so we keep the newer state.
+  if (!existsSync(join(config.baileysSessionPath, 'creds.json'))) {
+    await restoreSession(config.baileysSessionPath);
+  }
+
   const { state, saveCreds } = await useMultiFileAuthState(config.baileysSessionPath);
   const { version } = await fetchLatestBaileysVersion();
 
@@ -90,7 +101,10 @@ export async function startWhatsApp() {
   });
   sock = mySock;
 
-  mySock.ev.on('creds.update', saveCreds);
+  mySock.ev.on('creds.update', async () => {
+    await saveCreds();
+    backupSession(config.baileysSessionPath);   // debounced backup to Supabase
+  });
 
   mySock.ev.on('connection.update', (update) => {
     // A replaced socket (after disconnect) must not fight the current one.
@@ -118,6 +132,7 @@ export async function startWhatsApp() {
       waNumber = me ?? null;
       latestQr = null;
       console.log(`[whatsapp] Connected ✅ as +${me}`);
+      backupSession(config.baileysSessionPath, { immediate: true }); // persist right after (re)connect
     }
 
     if (connection === 'close') {
