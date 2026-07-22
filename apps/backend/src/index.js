@@ -7,6 +7,7 @@ import cors from 'cors';
 import { config } from './config.js';
 import { startWhatsApp } from './whatsapp/connection.js';
 import { startFollowUpScheduler } from './pipeline/followUp.js';
+import { startReminderScheduler } from './flow/reminders.js';
 import { apiRoutes } from './api/routes.js';
 
 const app = express();
@@ -24,5 +25,6 @@ app.listen(config.port, () => {
   console.log(`[backend] Express listening on :${config.port}`);
 });
 
-startFollowUpScheduler();
+startFollowUpScheduler();      // legacy AI "talk later" re-engagement (dormant unless used)
+startReminderScheduler();      // counselling-flow 8h/24h no-reply reminders
 await startWhatsApp();

@@ -35,6 +35,17 @@ apiRoutes.post('/leads/:id/resume', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Pause / resume the automated counselling flow for one contact without
+// necessarily taking the chat over (spec §15). While paused the bot stays
+// silent; resuming continues from the student's saved step.
+apiRoutes.post('/leads/:id/automation', async (req, res) => {
+  const lead = await getLead(req, res);
+  if (!lead) return;
+  const paused = !!req.body?.paused;
+  await updateLeadFields(lead.id, { automation_paused: paused });
+  res.json({ ok: true, automation_paused: paused });
+});
+
 // Staff sends a WhatsApp message to the lead via Baileys.
 apiRoutes.post('/leads/:id/send', async (req, res) => {
   const { text } = req.body ?? {};
