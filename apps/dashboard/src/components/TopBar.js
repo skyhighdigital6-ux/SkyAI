@@ -19,6 +19,7 @@ const NAV = [
   { href: '/staff', label: 'Staff' },
   { href: '/followups', label: 'Scheduled Follow-ups' },
   { href: '/bulk-message', label: 'Bulk Message' },
+  { href: '/voice', label: 'AI Voice Calling' },
   { href: '/whatsapp', label: 'Connect WhatsApp' },
   { href: '/settings', label: 'Settings' },
 ];

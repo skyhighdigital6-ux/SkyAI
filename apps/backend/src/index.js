@@ -8,6 +8,8 @@ import { config } from './config.js';
 import { startWhatsApp } from './whatsapp/connection.js';
 import { startFollowUpScheduler } from './pipeline/followUp.js';
 import { startReminderScheduler } from './flow/reminders.js';
+import { startDialer } from './voice/dialer.js';
+import { voiceWebhook } from './voice/webhook.js';
 import { apiRoutes } from './api/routes.js';
 
 const app = express();
@@ -19,6 +21,10 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'skyai-backend' });
 });
 
+// Voice-provider callbacks: no staff JWT, guarded by VOICE_WEBHOOK_SECRET.
+// Mounted before /api so it isn't caught by requireStaff.
+app.use('/webhooks/voice', voiceWebhook);
+
 app.use('/api', apiRoutes);
 
 app.listen(config.port, () => {
@@ -27,4 +33,5 @@ app.listen(config.port, () => {
 
 startFollowUpScheduler();      // legacy AI "talk later" re-engagement (dormant unless used)
 startReminderScheduler();      // counselling-flow 8h/24h no-reply reminders
+startDialer();                 // outbound voice campaigns (idle unless VOICE_API_KEY set)
 await startWhatsApp();

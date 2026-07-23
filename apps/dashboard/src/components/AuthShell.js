@@ -18,6 +18,7 @@ const LINKS = [
   { href: '/staff', label: 'Staff', ico: 'user' },
   { href: '/followups', label: 'Scheduled Follow-ups', ico: 'calendar' },
   { href: '/bulk-message', label: 'Bulk Message', ico: 'zap' },
+  { href: '/voice', label: 'AI Voice Calling', ico: 'phone' },
   { href: '/whatsapp', label: 'Connect WhatsApp', ico: 'phone' },
   { href: '/settings', label: 'Settings', ico: 'gear' },
 ];
