@@ -41,8 +41,10 @@ export async function answerFreeText(lead, text) {
       `briefly (1-3 short sentences), warmly, and in the SAME language they use (English / Hindi / ` +
       `Hinglish). If they greet, greet back. Do NOT invent specific fees, cut-offs, rankings or seat ` +
       `numbers for a particular college — for exact figures say our Career Expert will share the latest ` +
-      `verified details. After answering, gently nudge them to continue by choosing from the menu, or to ` +
-      `type "Counselor" to talk to a human expert. Never say you cannot help.\n` +
+      `verified details. Stay on the student's topic and continue the conversation naturally — do NOT ` +
+      `list courses or colleges unless they ask for options. Only when it genuinely fits, you may offer ` +
+      `to show course/college options or to connect them with a Career Expert (they can type ` +
+      `"Counselor"). Never say you cannot help.\n` +
       `Course options we offer include: ${courses}.\n` +
       `Career Experts: Prakash Sir and Supriya Mam.\n` +
       `Student's current selection so far: ${await selectionContext(lead)}.`;

@@ -161,6 +161,17 @@ async function goToCollegeStep(sock, jid, lead, { resetPage = true } = {}) {
   return updateLeadFields(lead.id, { flow_step: 'awaiting_college' });
 }
 
+// Did the student actually ask to SEE the options? Only then do we re-post the
+// course/state/college menu after an answer — otherwise the chat stays natural.
+function wantsOptions(t) {
+  const s = String(t || '');
+  if (/^\s*(menu|options|list)\s*[?.!]?\s*$/i.test(s)) return true;
+  if (/\b(show|list|send|give|display|dikhao|dikha|batao|bata)\b[\s\S]{0,25}\b(course|courses|college|colleges|option|options)\b/i.test(s)) return true;
+  if (/\b(course|college)s?\s+(list|options|menu)\b/i.test(s)) return true;
+  if (/\b(what|which|kaun|kaunse|konse|konsi)\b[\s\S]{0,15}\b(courses|colleges)\b/i.test(s)) return true;
+  return false;
+}
+
 // A short standalone greeting ("hi", "hello", "namaste", "assalamualaikum"…).
 function isGreeting(t) {
   const s = String(t || '').toLowerCase().replace(/[^a-z ]/g, '').trim();
@@ -182,8 +193,12 @@ async function invalid(sock, jid, lead, text) {
   const aiAnswer = await answerFreeText(lead, text);
   if (aiAnswer) {
     lead = await updateLeadFields(lead.id, { unrecognized_count: 0 });
-    await say(sock, jid, lead, aiAnswer);
-    await resendStep(sock, jid, lead);
+    // Answer and stop there — re-posting the menu after every reply makes the
+    // bot feel like it's ignoring the conversation. Only show the list when the
+    // student actually asks for options. `expectsReply` keeps the no-reply
+    // clock fresh while they're actively chatting.
+    await say(sock, jid, lead, aiAnswer, { expectsReply: true });
+    if (wantsOptions(text)) await resendStep(sock, jid, lead);
     return lead;
   }
   // AI unavailable → scripted line; only offer a human after several misses in a
