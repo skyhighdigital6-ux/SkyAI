@@ -105,7 +105,7 @@ function Colleges() {
   const load = useCallback(async () => {
     if (DEMO) return;
     const [c, s, g] = await Promise.all([
-      supabase.from('courses').select('*').order('display_order'),
+      supabase.from('courses').select('*').order('display_order').order('id'),
       supabase.from('states').select('*').order('display_order'),
       supabase.from('colleges').select('*').order('display_order').order('id'),
     ]);
@@ -168,11 +168,12 @@ function Colleges() {
                   <span className="muted">{(form.course_ids || []).length} of {courses.length} selected</span>
                 </div>
               )}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px 16px', maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
                 {courses.length === 0 && <span className="muted">Add courses first.</span>}
                 {courses.map((c) => (
-                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <input type="checkbox" checked={(form.course_ids || []).includes(c.id)} onChange={() => toggleCourse(c.id)} /> {c.name}
+                  <label key={c.id} title={c.name} style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    <input type="checkbox" style={{ flex: 'none' }} checked={(form.course_ids || []).includes(c.id)} onChange={() => toggleCourse(c.id)} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
                   </label>
                 ))}
               </div>
