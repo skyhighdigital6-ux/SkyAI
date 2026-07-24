@@ -189,7 +189,7 @@ export default function Dashboard() {
 
           <div className="grid-2">
             <div className="card">
-              <h3>Catalog Preview <span className="linky" style={{ float: 'right' }} onClick={() => router.push('/catalog')}>Manage →</span></h3>
+              <h3>Catalogue Preview <span className="linky" style={{ float: 'right' }} onClick={() => router.push('/catalog')}>Manage →</span></h3>
               <div className="kb-mini">
                 <div className="cell"><b>Courses</b>{catalog.courses}</div>
                 <div className="cell"><b>States</b>{catalog.states}</div>

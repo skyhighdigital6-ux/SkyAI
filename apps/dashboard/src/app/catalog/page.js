@@ -436,18 +436,160 @@ function Settings() {
   );
 }
 
+// States tab — CRUD + a "No. of colleges" column + search, plus a drill-down
+// into a state's colleges → a college's courses (breadcrumbs + Back).
+function StatesTab() {
+  const [states, setStates] = useState([]);
+  const [colleges, setColleges] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [form, setForm] = useState(null);
+  const [err, setErr] = useState('');
+  const [q, setQ] = useState('');
+  const [selState, setSelState] = useState(null);
+  const [selCollege, setSelCollege] = useState(null);
+
+  const load = useCallback(async () => {
+    if (DEMO) return;
+    const [s, g, c] = await Promise.all([
+      supabase.from('states').select('*').order('display_order').order('id'),
+      supabase.from('colleges').select('id,name,state_id,course_ids,is_active').order('display_order').order('name'),
+      supabase.from('courses').select('id,name'),
+    ]);
+    setStates(s.data ?? []); setColleges(g.data ?? []); setCourses(c.data ?? []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { setQ(''); }, [selState, selCollege]);
+
+  const collegeCount = (id) => colleges.filter((c) => c.state_id === id).length;
+  const courseName = (id) => courses.find((c) => c.id === id)?.name;
+
+  async function save(e) {
+    e.preventDefault(); setErr('');
+    if (DEMO) return alert('Connect Supabase to edit the catalogue.');
+    if (!form.name?.trim()) return setErr('State name is required');
+    const payload = { name: form.name.trim(), display_order: Number(form.display_order) || 0, is_active: form.is_active ?? true };
+    const qy = form.id ? supabase.from('states').update(payload).eq('id', form.id) : supabase.from('states').insert(payload);
+    const { error } = await qy;
+    if (error) return setErr(error.message);
+    setForm(null); load();
+  }
+  async function remove(e, r) {
+    e.stopPropagation();
+    if (DEMO) return; if (!confirm(`Delete "${r.name}"?`)) return;
+    await supabase.from('states').delete().eq('id', r.id); load();
+  }
+
+  const view = selCollege ? 'courses' : selState ? 'colleges' : 'states';
+  const ql = q.trim().toLowerCase();
+  const stateRows = states.filter((s) => s.name.toLowerCase().includes(ql));
+  const collegeRows = colleges.filter((c) => c.state_id === selState?.id && (c.name || '').toLowerCase().includes(ql));
+  const courseRows = (selCollege?.course_ids || []).map(courseName).filter(Boolean)
+    .filter((n) => n.toLowerCase().includes(ql)).sort((a, b) => a.localeCompare(b));
+
+  const Crumb = ({ onClick, active, children }) => (
+    <span onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', color: active ? 'var(--text)' : 'var(--green)', fontWeight: active ? 800 : 600 }}>{children}</span>
+  );
+
+  if (view === 'colleges') {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button className="btn secondary" onClick={() => setSelState(null)}>← Back</button>
+          <h3 style={{ margin: 0 }}><Crumb onClick={() => setSelState(null)}>States</Crumb> <span className="muted">›</span> <Crumb active>{selState.name}</Crumb></h3>
+          <span className="muted">{collegeRows.length} colleges</span>
+          <input type="text" placeholder={`Search colleges in ${selState.name}…`} value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: 'auto', minWidth: 220 }} />
+        </div>
+        <div className="card" style={{ padding: 0 }}><div style={{ overflowX: 'auto' }}><table>
+          <thead><tr><th>College</th><th style={{ width: 120 }}>Courses</th><th style={{ width: 50 }}></th></tr></thead>
+          <tbody>
+            {collegeRows.length === 0 && <tr><td colSpan={3} className="muted">No colleges{ql ? ' match your search' : ' in this state'}.</td></tr>}
+            {collegeRows.map((c) => (
+              <tr key={c.id} onClick={() => setSelCollege({ id: c.id, name: c.name, course_ids: c.course_ids })} title="View courses">
+                <td><b>{c.name}</b>{!c.is_active && <span className="badge cold" style={{ marginLeft: 8 }}>inactive</span>}</td>
+                <td><span className="badge st-blue">{(c.course_ids || []).length}</span></td>
+                <td className="muted">›</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div></div>
+      </div>
+    );
+  }
+
+  if (view === 'courses') {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button className="btn secondary" onClick={() => setSelCollege(null)}>← Back</button>
+          <h3 style={{ margin: 0 }}><Crumb onClick={() => { setSelState(null); setSelCollege(null); }}>States</Crumb> <span className="muted">›</span> <Crumb onClick={() => setSelCollege(null)}>{selState.name}</Crumb> <span className="muted">›</span> <Crumb active>{selCollege.name}</Crumb></h3>
+          <span className="muted">{courseRows.length} courses</span>
+          <input type="text" placeholder="Search courses…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: 'auto', minWidth: 220 }} />
+        </div>
+        <div className="card" style={{ padding: 0 }}><div style={{ overflowX: 'auto' }}><table>
+          <thead><tr><th style={{ width: 50 }}>#</th><th>Course</th></tr></thead>
+          <tbody>
+            {courseRows.length === 0 && <tr><td colSpan={2} className="muted">No courses{ql ? ' match your search' : ' listed for this college'}.</td></tr>}
+            {courseRows.map((n, i) => <tr key={n} style={{ cursor: 'default' }}><td className="muted">{i + 1}</td><td>{n}</td></tr>)}
+          </tbody>
+        </table></div></div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {form ? (
+        <form className="card" onSubmit={save}>
+          <div className="form-grid">
+            <Field label="State name"><input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+            <Field label="Display order"><input type="number" value={form.display_order ?? 0} onChange={(e) => setForm({ ...form, display_order: e.target.value })} /></Field>
+            <Field label="Active"><input type="checkbox" checked={form.is_active ?? true} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /></Field>
+          </div>
+          {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button className="btn">{form.id ? 'Save' : 'Add'}</button>
+            <button type="button" className="btn secondary" onClick={() => setForm(null)}>Cancel</button>
+          </div>
+        </form>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="btn" onClick={() => setForm({ is_active: true, display_order: states.length ? Math.max(...states.map((s) => s.display_order || 0)) + 1 : 1 })}>+ Add state</button>
+          <input type="text" placeholder="Search states…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginLeft: 'auto', minWidth: 240 }} />
+        </div>
+      )}
+      <div className="card" style={{ padding: 0 }}><div style={{ overflowX: 'auto' }}><table>
+        <thead><tr><th style={{ width: 80 }}>Order</th><th>State</th><th style={{ width: 160 }}>No. of colleges</th><th style={{ width: 150 }}>Actions</th></tr></thead>
+        <tbody>
+          {stateRows.length === 0 && <tr><td colSpan={4} className="muted">No states{ql ? ' match your search' : ''}.</td></tr>}
+          {stateRows.map((s) => (
+            <tr key={s.id} onClick={() => setSelState({ id: s.id, name: s.name })} title="Click to view colleges">
+              <td>{s.display_order}</td>
+              <td><b>{s.name}</b>{!s.is_active && <span className="badge cold" style={{ marginLeft: 8 }}>inactive</span>}</td>
+              <td><span className="badge st-blue">{collegeCount(s.id)}</span></td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <button className="btn secondary" style={{ marginRight: 6 }} onClick={(e) => { e.stopPropagation(); setForm(s); }}>Edit</button>
+                <button className="btn danger" onClick={(e) => remove(e, s)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div></div>
+    </div>
+  );
+}
+
 export default function CatalogPage() {
   const [tab, setTab] = useState('Courses');
   return (
     <div>
       <TopBar />
-      <div className="pagehead"><h1>Catalog</h1><span className="sub">Courses, states, colleges, documents & experts shown in the WhatsApp flow</span></div>
+      <div className="pagehead"><h1>Catalogue</h1><span className="sub">Courses, states, colleges, documents & experts shown in the WhatsApp flow</span></div>
       {DEMO && <div className="banner" style={{ marginBottom: 12 }}>Demo mode — connect Supabase to manage the catalog.</div>}
       <div className="tabs">
         {TABS.map((t) => <button key={t} className={tab === t ? 'active' : ''} onClick={() => setTab(t)}>{t}</button>)}
       </div>
       {tab === 'Courses' && <SimpleTable table="courses" singular="Course" />}
-      {tab === 'States' && <SimpleTable table="states" singular="State" />}
+      {tab === 'States' && <StatesTab />}
       {tab === 'Colleges' && <Colleges />}
       {tab === 'Documents' && <Documents />}
       {tab === 'Counsellors' && <Counsellors />}

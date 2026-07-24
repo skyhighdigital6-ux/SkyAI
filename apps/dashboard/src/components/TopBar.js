@@ -13,8 +13,7 @@ const NAV = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/leads', label: 'Leads' },
   { href: '/conversations', label: 'Conversations' },
-  { href: '/catalog', label: 'Catalog' },
-  { href: '/explore', label: 'Colleges by State' },
+  { href: '/catalog', label: 'Catalogue' },
   { href: '/documents', label: 'Documents' },
   { href: '/analytics', label: 'Analytics' },
   { href: '/staff', label: 'Staff' },
@@ -58,7 +57,7 @@ export default function TopBar() {
         <label className="search" style={{ maxWidth: 'none' }}>
           <Ic name="search" size={15} />
           <input
-            placeholder="Search pages… (Leads, Catalog, Settings…)"
+            placeholder="Search pages… (Leads, Catalogue, Settings…)"
             value={q}
             onChange={(e) => { setQ(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}

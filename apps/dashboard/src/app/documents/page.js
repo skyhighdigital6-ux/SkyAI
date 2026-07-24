@@ -37,7 +37,7 @@ export default function Documents() {
       </div>
       <div className="card muted">
         📦 Brochures are stored in the Supabase Storage <b>brochures</b> bucket. Upload each college&apos;s
-        brochure &amp; fee structure under <b>Catalog → Documents</b> and the bot automatically sends the
+        brochure &amp; fee structure under <b>Catalogue → Documents</b> and the bot automatically sends the
         right PDF — every share is logged here.
       </div>
     </div>
