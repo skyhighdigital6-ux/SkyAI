@@ -75,13 +75,13 @@ function SimpleTable({ table, singular }) {
         <button className="btn" style={{ marginBottom: 14 }} onClick={() => setForm({ is_active: true, display_order: 0 })}>+ Add {singular.toLowerCase()}</button>
       )}
       <div className="card" style={{ padding: 0 }}><table>
-        <thead><tr><th>{singular}</th><th style={{ width: 90 }}>Order</th><th style={{ width: 160 }}>Actions</th></tr></thead>
+        <thead><tr><th style={{ width: 80 }}>Order</th><th>{singular}</th><th style={{ width: 160 }}>Actions</th></tr></thead>
         <tbody>
           {rows.length === 0 && <tr><td colSpan={3} className="muted">Empty.</td></tr>}
           {rows.map((r) => (
             <tr key={r.id}>
-              <td>{r.name} {!r.is_active && <span className="badge cold" style={{ marginLeft: 8 }}>inactive</span>}</td>
               <td>{r.display_order}</td>
+              <td>{r.name} {!r.is_active && <span className="badge cold" style={{ marginLeft: 8 }}>inactive</span>}</td>
               <td>
                 <button className="btn secondary" style={{ marginRight: 6 }} onClick={() => setForm(r)}>Edit</button>
                 <button className="btn danger" onClick={() => remove(r)}>Delete</button>
