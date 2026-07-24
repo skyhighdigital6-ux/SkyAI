@@ -99,8 +99,10 @@ function Colleges() {
   const [rows, setRows] = useState([]);
   const [states, setStates] = useState([]);
   const [courses, setCourses] = useState([]);
-  const [form, setForm] = useState(null);
+  const [form, setForm] = useState(null);       // single EDIT form
+  const [creating, setCreating] = useState(null); // multi-add form
   const [err, setErr] = useState('');
+  const [note, setNote] = useState('');
 
   const load = useCallback(async () => {
     if (DEMO) return;
@@ -118,7 +120,7 @@ function Colleges() {
 
   async function save(e) {
     e.preventDefault(); setErr('');
-    if (DEMO) return alert('Connect Supabase to edit the catalog.');
+    if (DEMO) return alert('Connect Supabase to edit the catalogue.');
     if (!form.name?.trim()) return setErr('College name is required');
     const payload = {
       name: form.name.trim(),
@@ -142,9 +144,107 @@ function Colleges() {
     setForm({ ...form, course_ids: [...set] });
   };
 
+  // ── multi-add helpers ──
+  const cSetName = (i, v) => setCreating((c) => ({ ...c, names: c.names.map((n, idx) => (idx === i ? v : n)) }));
+  const cAddName = () => setCreating((c) => ({ ...c, names: [...c.names, ''] }));
+  const cRemoveName = (i) => setCreating((c) => ({ ...c, names: c.names.filter((_, idx) => idx !== i) }));
+  const cToggleCourse = (id) => setCreating((c) => { const s = new Set(c.course_ids || []); s.has(id) ? s.delete(id) : s.add(id); return { ...c, course_ids: [...s] }; });
+
+  async function saveMulti(e) {
+    e.preventDefault(); setErr(''); setNote('');
+    if (DEMO) return alert('Connect Supabase to edit the catalogue.');
+    if (!creating.state_id) return setErr('Please select a state first.');
+    const seen = new Set(); const uniq = [];
+    for (const raw of creating.names || []) {
+      const n = raw.trim(); if (!n) continue;
+      const k = n.toLowerCase(); if (!seen.has(k)) { seen.add(k); uniq.push(n); }
+    }
+    if (!uniq.length) return setErr('Enter at least one college name.');
+    const stateId = Number(creating.state_id);
+    const existing = new Set(rows.filter((r) => r.state_id === stateId).map((r) => (r.name || '').toLowerCase()));
+    const toInsert = uniq.filter((n) => !existing.has(n.toLowerCase()));
+    const skipped = uniq.length - toInsert.length;
+    if (!toInsert.length) return setErr('All entered colleges already exist in this state.');
+    const base = Number(creating.display_order) || 0;
+    const payload = toInsert.map((n, i) => ({
+      name: n, state_id: stateId, course_ids: (creating.course_ids || []).map(Number),
+      display_order: base ? base + i : 0, is_active: creating.is_active ?? true,
+    }));
+    const { data, error } = await supabase.from('colleges').insert(payload).select('id');
+    if (error) return setErr(error.message);
+    const sn = states.find((s) => s.id === stateId)?.name || 'the selected state';
+    setNote(`✓ Created ${data.length} college${data.length > 1 ? 's' : ''} under ${sn}${skipped ? ` · skipped ${skipped} duplicate` : ''}.`);
+    setCreating(null); load();
+  }
+
+  // Shared course-picker markup used by both forms.
+  const coursePicker = (selected, onToggle, onAll) => (
+    <>
+      {courses.length > 0 && (
+        <div style={{ display: 'flex', gap: 14, marginBottom: 8, alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+            <input type="checkbox" checked={selected.length === courses.length}
+              ref={(el) => { if (el) el.indeterminate = selected.length > 0 && selected.length < courses.length; }}
+              onChange={(e) => onAll(e.target.checked ? courses.map((c) => c.id) : [])} />
+            Select all courses
+          </label>
+          <span className="muted">{selected.length} of {courses.length} selected</span>
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '10px 18px', maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
+        {courses.length === 0 && <span className="muted">Add courses first.</span>}
+        {courses.map((c) => (
+          <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
+            <input type="checkbox" style={{ flex: 'none', width: 16, height: 16, margin: 0 }} checked={selected.includes(c.id)} onChange={() => onToggle(c.id)} />
+            <span>{c.name}</span>
+          </label>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <div>
-      {form ? (
+      {creating ? (
+        <form className="card" onSubmit={saveMulti}>
+          <div className="form-grid">
+            <Field label="State *">
+              <select value={creating.state_id || ''} onChange={(e) => setCreating({ ...creating, state_id: e.target.value })}>
+                <option value="">— select state —</option>
+                {states.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
+            <Field label="Display order (start)"><input type="number" value={creating.display_order ?? 0} onChange={(e) => setCreating({ ...creating, display_order: e.target.value })} /></Field>
+          </div>
+
+          {!creating.state_id ? (
+            <div className="muted" style={{ marginTop: 12 }}>👆 Select a state to start adding colleges under it.</div>
+          ) : (
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>College names</label>
+              {creating.names.map((n, i) => (
+                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                  <input value={n} onChange={(e) => cSetName(i, e.target.value)} placeholder={`College #${i + 1} name`} style={{ flex: 1 }} />
+                  {creating.names.length > 1 && <button type="button" className="btn danger" onClick={() => cRemoveName(i)}>Remove</button>}
+                </div>
+              ))}
+              <button type="button" className="btn secondary" onClick={cAddName}>+ Add another college</button>
+
+              <div style={{ marginTop: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>Courses offered — applied to all these colleges (optional)</label>
+                {coursePicker(creating.course_ids || [], cToggleCourse, (ids) => setCreating({ ...creating, course_ids: ids }))}
+              </div>
+              <label className="chk" style={{ marginTop: 12 }}><input type="checkbox" checked={creating.is_active ?? true} onChange={(e) => setCreating({ ...creating, is_active: e.target.checked })} /> Active</label>
+            </div>
+          )}
+
+          {err && <div className="err" style={{ marginTop: 10 }}>{err}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button className="btn" disabled={!creating.state_id}>Add Colleges</button>
+            <button type="button" className="btn secondary" onClick={() => { setCreating(null); setErr(''); }}>Cancel</button>
+          </div>
+        </form>
+      ) : form ? (
         <form className="card" onSubmit={save}>
           <div className="form-grid">
             <Field label="College name" full><input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -156,39 +256,22 @@ function Colleges() {
             </Field>
             <Field label="Display order"><input type="number" value={form.display_order ?? 0} onChange={(e) => setForm({ ...form, display_order: e.target.value })} /></Field>
             <Field label="Courses offered" full>
-              {courses.length > 0 && (
-                <div style={{ display: 'flex', gap: 14, marginBottom: 8, alignItems: 'center' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
-                    <input type="checkbox"
-                      checked={(form.course_ids || []).length === courses.length}
-                      ref={(el) => { if (el) el.indeterminate = (form.course_ids || []).length > 0 && (form.course_ids || []).length < courses.length; }}
-                      onChange={(e) => setForm({ ...form, course_ids: e.target.checked ? courses.map((c) => c.id) : [] })} />
-                    Select all courses
-                  </label>
-                  <span className="muted">{(form.course_ids || []).length} of {courses.length} selected</span>
-                </div>
-              )}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '10px 18px', maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
-                {courses.length === 0 && <span className="muted">Add courses first.</span>}
-                {courses.map((c) => (
-                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
-                    <input type="checkbox" style={{ flex: 'none', width: 16, height: 16, margin: 0 }} checked={(form.course_ids || []).includes(c.id)} onChange={() => toggleCourse(c.id)} />
-                    <span>{c.name}</span>
-                  </label>
-                ))}
-              </div>
+              {coursePicker(form.course_ids || [], toggleCourse, (ids) => setForm({ ...form, course_ids: ids }))}
             </Field>
             <Field label="Active"><input type="checkbox" checked={form.is_active ?? true} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} /></Field>
           </div>
           {err && <div className="err" style={{ marginTop: 8 }}>{err}</div>}
           <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button className="btn">{form.id ? 'Save' : 'Add'}</button>
+            <button className="btn">Save</button>
             <button type="button" className="btn secondary" onClick={() => setForm(null)}>Cancel</button>
           </div>
         </form>
       ) : (
-        <button className="btn" style={{ marginBottom: 14 }} onClick={() => setForm({ is_active: true, display_order: 0, course_ids: [] })}>+ Add college</button>
+        <button className="btn" style={{ marginBottom: 14 }} onClick={() => { setNote(''); setErr(''); setCreating({ state_id: '', names: [''], course_ids: [], is_active: true, display_order: 0 }); }}>+ Add college</button>
       )}
+
+      {note && <div style={{ marginBottom: 12, background: '#e7f6ec', border: '1px solid #bbe7c8', color: '#166534', borderRadius: 10, padding: '10px 14px', fontWeight: 600 }}>{note}</div>}
+
       <div className="card" style={{ padding: 0 }}>
         <div style={{ overflowX: 'auto' }}>
           <table>
