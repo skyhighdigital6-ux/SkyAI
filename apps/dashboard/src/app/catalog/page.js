@@ -156,6 +156,18 @@ function Colleges() {
             </Field>
             <Field label="Display order"><input type="number" value={form.display_order ?? 0} onChange={(e) => setForm({ ...form, display_order: e.target.value })} /></Field>
             <Field label="Courses offered" full>
+              {courses.length > 0 && (
+                <div style={{ display: 'flex', gap: 14, marginBottom: 8, alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                    <input type="checkbox"
+                      checked={(form.course_ids || []).length === courses.length}
+                      ref={(el) => { if (el) el.indeterminate = (form.course_ids || []).length > 0 && (form.course_ids || []).length < courses.length; }}
+                      onChange={(e) => setForm({ ...form, course_ids: e.target.checked ? courses.map((c) => c.id) : [] })} />
+                    Select all courses
+                  </label>
+                  <span className="muted">{(form.course_ids || []).length} of {courses.length} selected</span>
+                </div>
+              )}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {courses.length === 0 && <span className="muted">Add courses first.</span>}
                 {courses.map((c) => (
@@ -176,23 +188,34 @@ function Colleges() {
       ) : (
         <button className="btn" style={{ marginBottom: 14 }} onClick={() => setForm({ is_active: true, display_order: 0, course_ids: [] })}>+ Add college</button>
       )}
-      <div className="card" style={{ padding: 0 }}><table>
-        <thead><tr><th>College</th><th>State</th><th>Courses</th><th style={{ width: 160 }}>Actions</th></tr></thead>
-        <tbody>
-          {rows.length === 0 && <tr><td colSpan={4} className="muted">Empty.</td></tr>}
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.name} {!r.is_active && <span className="badge cold" style={{ marginLeft: 8 }}>inactive</span>}</td>
-              <td>{stateName(r.state_id)}</td>
-              <td className="muted">{courseNames(r.course_ids)}</td>
-              <td>
-                <button className="btn secondary" style={{ marginRight: 6 }} onClick={() => setForm({ ...r, course_ids: r.course_ids || [] })}>Edit</button>
-                <button className="btn danger" onClick={() => remove(r)}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table></div>
+      <div className="card" style={{ padding: 0 }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table>
+            <thead><tr><th>College</th><th>State</th><th>Courses</th><th style={{ width: 150 }}>Actions</th></tr></thead>
+            <tbody>
+              {rows.length === 0 && <tr><td colSpan={4} className="muted">Empty.</td></tr>}
+              {rows.map((r) => {
+                const names = courseNames(r.course_ids);
+                const count = (r.course_ids || []).length;
+                const shortNames = names.length > 55 ? names.slice(0, 55).replace(/,\s*[^,]*$/, '') + '…' : names;
+                return (
+                  <tr key={r.id}>
+                    <td>{r.name} {!r.is_active && <span className="badge cold" style={{ marginLeft: 8 }}>inactive</span>}</td>
+                    <td>{stateName(r.state_id)}</td>
+                    <td className="muted" title={names} style={{ maxWidth: 360 }}>
+                      {count > 0 && <span className="badge st-blue" style={{ marginRight: 6 }}>{count}</span>}{shortNames}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="btn secondary" style={{ marginRight: 6 }} onClick={() => setForm({ ...r, course_ids: r.course_ids || [] })}>Edit</button>
+                      <button className="btn danger" onClick={() => remove(r)}>Delete</button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
