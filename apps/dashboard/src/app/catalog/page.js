@@ -171,8 +171,8 @@ function Colleges() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '10px 18px', maxHeight: 300, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 10, padding: 14 }}>
                 {courses.length === 0 && <span className="muted">Add courses first.</span>}
                 {courses.map((c) => (
-                  <label key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13.5, lineHeight: 1.35, cursor: 'pointer' }}>
-                    <input type="checkbox" style={{ flex: 'none', marginTop: 2 }} checked={(form.course_ids || []).includes(c.id)} onChange={() => toggleCourse(c.id)} />
+                  <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
+                    <input type="checkbox" style={{ flex: 'none', width: 16, height: 16, margin: 0 }} checked={(form.course_ids || []).includes(c.id)} onChange={() => toggleCourse(c.id)} />
                     <span>{c.name}</span>
                   </label>
                 ))}
