@@ -20,10 +20,12 @@ alter table leads add column if not exists notified_college_id  bigint; -- last 
 alter table leads add column if not exists notified_at          timestamptz;
 
 -- ── Log of every counsellor notification sent ───────────────────────
+-- Note: counsellor_id is a plain bigint (no FK) so this migration doesn't
+-- depend on the counsellors table already existing in this database.
 create table if not exists counselor_notifications (
   id            bigint generated always as identity primary key,
   lead_id       uuid references leads(id) on delete cascade,
-  counsellor_id bigint references counsellors(id) on delete set null,
+  counsellor_id bigint,
   phone         text,
   kind          text,                 -- Hot | Warm | college | assistance
   result        text,                 -- sent | failed
