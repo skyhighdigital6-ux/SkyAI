@@ -8,6 +8,7 @@ import { config } from './config.js';
 import { startWhatsApp } from './whatsapp/connection.js';
 import { startFollowUpScheduler } from './pipeline/followUp.js';
 import { startReminderScheduler } from './flow/reminders.js';
+import { startWelcomeWorker } from './pipeline/welcomeQueue.js';
 import { startDialer } from './voice/dialer.js';
 import { voiceWebhook } from './voice/webhook.js';
 import { apiRoutes } from './api/routes.js';
@@ -32,6 +33,7 @@ app.listen(config.port, () => {
 });
 
 startFollowUpScheduler();      // legacy AI "talk later" re-engagement (dormant unless used)
-startReminderScheduler();      // counselling-flow 8h/24h no-reply reminders
+startReminderScheduler();      // counselling-flow stage-specific 8h no-reply reminder
+startWelcomeWorker();          // reliable DB-backed welcome-message queue (bulk imports)
 startDialer();                 // outbound voice campaigns (idle unless VOICE_API_KEY set)
 await startWhatsApp();

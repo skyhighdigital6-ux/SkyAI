@@ -16,6 +16,7 @@ import {
   courseMenu, stateMenu, collegeMenu, actionMenu, matchReply, sendMenu, say,
 } from './menu.js';
 import { answerFreeText } from './aiFallback.js';
+import { checkAndNotify } from './notify.js';
 
 const PAGE_SIZE = 8;
 
@@ -33,6 +34,8 @@ const HUMAN = [
 const ADMISSION_INTENT = /admission|course|college|mbbs|neet|counsel|guidance|interested|\bhelp\b/i;
 
 const isNotInterested = (t) => NOT_INTERESTED.some((re) => re.test(t));
+// A bare "No" (the close-out cue used across the follow-up messages).
+const isBareNo = (t) => /^\s*no+\.?!?\s*$/i.test(t) || /^\s*no+\s*(thanks|thank you|thnx|thx)\.?!?\s*$/i.test(t);
 const wantsHuman = (t) => HUMAN.some((re) => re.test(t));
 const isHardOptOut = (t) => /\bstop\b/i.test(t) || /\bunsubscribe\b/i.test(t) || /\bremove\s*my\s*(number|no|name)/i.test(t);
 
@@ -68,6 +71,12 @@ export async function buildStepMenu(lead) {
       return { text: C.askOtherCollege, options: null };
     case 'awaiting_action':
       return { text: 'Would you like to speak with a Career Expert now?', options: actionMenu(await cat.getActiveCounsellors()) };
+    case 'awaiting_app_choice': {
+      const college = (lead.selected_college_id ? (await cat.getCollege(lead.selected_college_id))?.name : lead.other_college) || 'your selected college';
+      return { text: C.reminderAppPending(lead, college), options: null };
+    }
+    case 'awaiting_college_request':
+      return { text: C.askOtherCollege, options: null };
     default:
       return { text: C.coursePrompt, options: courseMenu(await cat.getActiveCourses()) };
   }
@@ -101,11 +110,14 @@ async function goHandover(sock, jid, lead, status = 'Human Assistance Required')
   // Pause the bot via needs_human (the pipeline gates on it). We deliberately
   // keep flow_step where the student was, so if an admin resumes automation the
   // conversation continues from the same point.
-  return updateLeadFields(lead.id, {
+  lead = await updateLeadFields(lead.id, {
     flow_status: status,
     needs_human: true,
     unrecognized_count: 0,
   });
+  // Student asked for a human → force a counsellor alert.
+  await checkAndNotify(lead.id, { reason: 'assistance' });
+  return lead;
 }
 
 async function sendCounsellorProfile(sock, jid, lead, counsellor) {
@@ -144,14 +156,20 @@ async function selectCollege(sock, jid, lead, { college, otherName }) {
   lead = await updateLeadFields(lead.id, { flow_status: 'Documents Shared' });
   await say(sock, jid, lead, C.completion);
   await sendMenu(sock, jid, lead, 'Please choose an option:', actionMenu(await cat.getActiveCounsellors()));
-  return updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
+  lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
+  // College picked → this is a Hot lead: alert the counsellor.
+  await checkAndNotify(lead.id);
+  return lead;
 }
 
 // Advance into the state step (from course selection or "change course").
 async function goToStateStep(sock, jid, lead) {
   const states = await cat.getStatesForCourse(lead.selected_course_id);
   await sendMenu(sock, jid, lead, C.statePrompt, stateMenu(states));
-  return updateLeadFields(lead.id, { flow_step: 'awaiting_state' });
+  lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_state' });
+  // Course chosen → the lead is now Warm: alert the counsellor (deduped).
+  await checkAndNotify(lead.id);
+  return lead;
 }
 
 async function goToCollegeStep(sock, jid, lead, { resetPage = true } = {}) {
@@ -342,6 +360,11 @@ export async function handleFlowMessage(ctx, lead) {
 
   // Global: explicit opt-out / not-interested at any point.
   if (isNotInterested(t)) return goNotInterested(sock, jid, lead, t);
+  // A bare "No" closes the request — except at the expert menu, where the menu
+  // has its own "No, thanks" option (handled below) and "No" just declines that.
+  if (isBareNo(t) && lead.flow_step && lead.flow_step !== 'awaiting_action') {
+    return goNotInterested(sock, jid, lead, t);
+  }
 
   // A reply means they're engaging → cancel any pending scheduled follow-up.
   if (lead.follow_up_date && !lead.follow_up_sent) {
@@ -381,6 +404,48 @@ export async function handleFlowMessage(ctx, lead) {
     if (!t) return invalid(sock, jid, lead, t);
     lead = await updateLeadFields(lead.id, { unrecognized_count: 0 });
     return selectCollege(sock, jid, lead, { college: null, otherName: t });
+  }
+
+  // ── post-college follow-up choice (spec msg #4: options 1–4) ──
+  if (lead.flow_step === 'awaiting_app_choice') {
+    const n = (t.match(/[1-4]/) || [])[0];
+    const collegeLabel = (lead.selected_college_id ? (await cat.getCollege(lead.selected_college_id))?.name : lead.other_college) || 'your selected college';
+    if (n === '1' || /\b(complete|apply|application|proceed|form)\b/i.test(t)) {
+      // Resend the application form / college documents and hand to the expert.
+      lead = await updateLeadFields(lead.id, { flow_status: 'College Selected', unrecognized_count: 0 });
+      const college = lead.selected_college_id ? await cat.getCollege(lead.selected_college_id) : null;
+      let delivered = 0;
+      if (college) delivered = await sendCollegeDocuments(sock, jid, lead, college);
+      if (!delivered) await say(sock, jid, lead, C.docsUpdating(collegeLabel));
+      await say(sock, jid, lead, `Great! Please complete your application for ${collegeLabel}. Our Career Expert will guide you through the next steps.`);
+      lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action', flow_status: 'Documents Shared' });
+      await checkAndNotify(lead.id, { reason: 'assistance' });
+      return lead;
+    }
+    if (n === '2' || /\b(different|another state|explore|change)\b/i.test(t)) {
+      // Explore a different state/college → restart from state selection.
+      lead = await updateLeadFields(lead.id, {
+        selected_state_id: null, selected_college_id: null, other_state: null, other_college: null,
+        college_page: 0, unrecognized_count: 0,
+      });
+      return goToStateStep(sock, jid, lead);
+    }
+    if (n === '3' || /\b(another college|other college|information|info)\b/i.test(t)) {
+      await say(sock, jid, lead, 'Sure! Please type the name of the college you would like information about, and our team will assist you with the admission details.', { expectsReply: true });
+      return updateLeadFields(lead.id, { flow_step: 'awaiting_college_request', unrecognized_count: 0 });
+    }
+    if (n === '4') return goNotInterested(sock, jid, lead, t);
+    return invalid(sock, jid, lead, t);
+  }
+
+  // Option 3 above: student types a college name → notify the counsellor.
+  if (lead.flow_step === 'awaiting_college_request') {
+    if (!t) return invalid(sock, jid, lead, t);
+    lead = await updateLeadFields(lead.id, { other_college: t, selected_college_id: null, flow_status: 'College Selected', unrecognized_count: 0 });
+    await say(sock, jid, lead, `Thank you! Our Career Expert will share the admission details for ${t} with you shortly.`);
+    lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
+    await checkAndNotify(lead.id, { reason: 'assistance' });
+    return lead;
   }
 
   // ── menu steps ──

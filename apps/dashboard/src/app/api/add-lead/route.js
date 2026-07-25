@@ -21,13 +21,17 @@ async function authStaff(request) {
   return { admin, staff };
 }
 
-const shape = (l, source) => ({
+// `welcome` → queue the automated welcome message. The backend welcome worker
+// drains rows where welcome_status='pending' (see welcomeQueue.js), so bulk
+// imports reliably send exactly one welcome each, even across restarts.
+const shape = (l, source, welcome) => ({
   whatsapp_number: normalizeNumber(l.whatsapp_number),
   name: (l.name ?? '').trim() || null,
   entry_source: source,
   flow_status: 'New Lead',
   selected_course_id: l.selected_course_id || null,
   selected_state_id: l.selected_state_id || null,
+  ...(welcome ? { welcome_status: 'pending' } : {}),
 });
 
 export async function POST(request) {
@@ -35,13 +39,15 @@ export async function POST(request) {
   if (res) return res;
   const body = await request.json().catch(() => ({}));
 
+  const welcome = !!(body.welcome ?? body.sendWelcome);
+
   // ── Bulk ──
   if (Array.isArray(body.leads)) {
     let invalid = 0;
     const seen = new Set();
     const rows = [];
     for (const l of body.leads) {
-      const r = shape(l, 'Bulk Upload');
+      const r = shape(l, 'Bulk Upload', welcome);
       if (!validNumber(r.whatsapp_number)) { invalid += 1; continue; }
       if (seen.has(r.whatsapp_number)) continue;      // dedupe within the file
       seen.add(r.whatsapp_number);
@@ -65,7 +71,7 @@ export async function POST(request) {
   }
 
   // ── Single ──
-  const row = shape(body, body.entry_source || 'Manual (Admin)');
+  const row = shape(body, body.entry_source || 'Manual (Admin)', welcome);
   if (!validNumber(row.whatsapp_number)) {
     return NextResponse.json({ error: 'Enter a valid WhatsApp number with country code (e.g. 91XXXXXXXXXX)' }, { status: 400 });
   }

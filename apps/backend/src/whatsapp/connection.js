@@ -21,6 +21,21 @@ import pino from 'pino';
 import { config } from '../config.js';
 import { onIncomingMessages } from './incoming.js';
 import { restoreSession, backupSession, clearRemoteSession } from './sessionStore.js';
+import { supabase } from '../db/supabase.js';
+
+// Baileys ack levels: 3 = delivered to device, 4 = read, 5 = played.
+// Map welcome-message receipts to the lead's welcome_status so admins see
+// Sent → Delivered → Read. We only ever move the status forward.
+const RANK = { pending: 0, sent: 1, delivered: 2, read: 3 };
+async function onWelcomeReceipt(waId, ackStatus) {
+  const next = ackStatus >= 4 ? 'read' : ackStatus >= 3 ? 'delivered' : null;
+  if (!next || !waId) return;
+  const { data: lead } = await supabase.from('leads')
+    .select('id, welcome_status').eq('welcome_wa_id', waId).maybeSingle();
+  if (!lead) return;
+  if ((RANK[next] ?? 0) <= (RANK[lead.welcome_status] ?? 0)) return; // never go backwards
+  await supabase.from('leads').update({ welcome_status: next }).eq('id', lead.id);
+}
 
 // Baileys is chatty; keep its internal logs quiet by default and do our own.
 // Set BAILEYS_LOG_LEVEL=warn|info|debug to surface protocol/decrypt errors.
@@ -163,6 +178,14 @@ export async function startWhatsApp() {
   });
 
   mySock.ev.on('messages.upsert', (upsert) => onIncomingMessages(mySock, upsert));
+
+  // Delivery/read receipts → update welcome_status for the matching lead.
+  mySock.ev.on('messages.update', (updates) => {
+    for (const u of updates) {
+      const ack = u?.update?.status;
+      if (typeof ack === 'number') onWelcomeReceipt(u.key?.id, ack).catch(() => {});
+    }
+  });
 
   return mySock;
 }

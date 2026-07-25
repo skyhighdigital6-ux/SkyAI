@@ -4,7 +4,6 @@
 // catalog by name for bulk rows.
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { backendApi } from '../lib/backendApi';
 import { parseCsv, normalizeNumber, validNumber } from '../lib/leadUtils';
 
 const TEMPLATE = 'name,whatsapp_number,course,state\nRahul Sharma,919876543210,MBBS,Bihar\nPriya Verma,9123456789,Engineering,Karnataka\n';
@@ -70,21 +69,14 @@ export default function LeadImport({ open, onClose, onDone }) {
     try {
       const num = normalizeNumber(form.whatsapp_number);
       if (!validNumber(num)) throw new Error('Enter a valid WhatsApp number with country code (e.g. 91XXXXXXXXXX)');
-      const { id } = await authedPost({
+      // welcome: true → the lead is queued (welcome_status='pending') and the
+      // backend welcome worker sends it reliably (no fragile per-request call).
+      await authedPost({
         whatsapp_number: form.whatsapp_number, name: form.name,
         selected_course_id: form.selected_course_id || null,
         selected_state_id: form.selected_state_id || null,
+        welcome: sendWelcome,
       });
-      if (sendWelcome && id) {
-        try { await backendApi(`/leads/${id}/start`, { method: 'POST' }); }
-        catch (werr) {
-          // Lead is created; only the WhatsApp welcome failed — keep the modal open to say so.
-          onDone?.();
-          setError(`Lead added, but welcome message not sent: ${werr.message}`);
-          setBusy(false);
-          return;
-        }
-      }
       onDone?.();
       onClose?.();                 // close automatically on success
     } catch (err) { setError(err.message); }
@@ -139,16 +131,12 @@ export default function LeadImport({ open, onClose, onDone }) {
     setError(''); setResult(''); setBusy(true);
     try {
       if (!rows.length) throw new Error('No rows to import — upload or paste a CSV first');
-      const r = await authedPost({ leads: rows });
+      // welcome: true → new leads are queued (welcome_status='pending'); the
+      // backend welcome worker drains the queue in staggered batches so all of
+      // them get exactly one welcome, reliably, even across restarts.
+      const r = await authedPost({ leads: rows, welcome: sendWelcome });
       let note = `Imported: ${r.added} added · ${r.skipped} already existed · ${r.invalid} invalid (of ${r.total})`;
-      if (sendWelcome && r.ids?.length) {
-        try {
-          const s = await backendApi('/leads/start-bulk', { method: 'POST', body: { ids: r.ids } });
-          note += ` · welcome queued to ${s.queued}`;
-        } catch (werr) {
-          note += ` · welcome NOT sent: ${werr.message}`;
-        }
-      }
+      if (sendWelcome && r.added) note += ` · welcome queued for ${r.added} new lead${r.added === 1 ? '' : 's'}`;
       setResult(note);
       setRows([]);
       onDone?.();

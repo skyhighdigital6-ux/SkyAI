@@ -106,6 +106,40 @@ export async function reminder24h(lead) {
   );
 }
 
+// 8h reminder — course chosen, state or college still pending (spec msg #3).
+export async function reminderPending(lead, pending, courseName) {
+  const experts = await expertsBlock();
+  const insta = await instagramLine();
+  const chooseLine = pending === 'state'
+    ? `Please choose your preferred state from the menu below. Based on your selection, we'll show you the available colleges offering ${courseName}. 😊👇`
+    : `Please choose your preferred college from the menu below so we can guide you with the best admission opportunities for ${courseName}. 😊👇`;
+  return `Hi ${nameOf(lead)} 👋\n` +
+    `It looks like you selected ${courseName}, but you haven't selected your preferred ${pending} yet.\n` +
+    `${chooseLine}\n` +
+    `If you're not interested in continuing, simply reply with "No," and we'll close your request. We're always here if you need guidance in the future.\n` +
+    `You can also connect directly with our experts:\n${experts}\n` +
+    `📲 Follow us on Instagram for the latest admission updates, scholarships, career guidance and college information:\n${insta}\n` +
+    `If you've already completed your admission or no longer require assistance, you may ignore this message. Thank you, and we wish you all the best for your future! 🌟`;
+}
+
+// 8h reminder — college chosen, application not completed (spec msg #4).
+export function reminderAppPending(lead, collegeName) {
+  return `Hi ${nameOf(lead)} 👋\n` +
+    `Our records show that you selected ${collegeName}, but your application form hasn't been completed yet.\n` +
+    `Please reply with 1, 2, 3, or 4:\n` +
+    `1️⃣ I want to complete my application for ${collegeName}.\n` +
+    `2️⃣ I want to explore a different state or college.\n` +
+    `3️⃣ I want information about another college. Please type the college name, and our team will assist you with the admission details.\n` +
+    `4️⃣ I don't want to continue the admission process.\n` +
+    `If you choose option 4, we'll stop sending you admission-related messages.\n` +
+    `You can always contact us again whenever you need career guidance or admission assistance. 😊`;
+}
+
+// 8h reminder — no course selected yet.
+export const reminderCoursePending = (lead) =>
+  `Hi ${nameOf(lead)} 👋\nJust a friendly reminder — you haven't selected a course yet. Whenever you're ready, ` +
+  `please pick a course from the menu below and we'll guide you further. If you're not interested, reply "No" and we'll close your request.`;
+
 export async function notInterestedMessage(lead) {
   const experts = await expertsBlock();
   const insta = await instagramLine();
