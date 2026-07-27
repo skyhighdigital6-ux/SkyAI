@@ -135,7 +135,15 @@ export function reminderAppPending(lead, collegeName) {
     `You can always contact us again whenever you need career guidance or admission assistance. 😊`;
 }
 
-// 8h reminder — no course selected yet.
+// Final reminder before auto-closing a stalled, low-engagement lead.
+export const reminderFinal = (lead) =>
+  `Hi ${nameOf(lead)} 👋\n` +
+  `This is a final reminder about your admission enquiry with ${BRAND}. ` +
+  `We haven't heard back from you, so we'll be closing this request for now.\n` +
+  `If you'd like to continue anytime, just reply to this message and we'll pick up right where we left off. ` +
+  `We wish you all the best for your future! 🌟`;
+
+// First reminder — no course selected yet.
 export const reminderCoursePending = (lead) =>
   `Hi ${nameOf(lead)} 👋\nJust a friendly reminder — you haven't selected a course yet. Whenever you're ready, ` +
   `please pick a course from the menu below and we'll guide you further. If you're not interested, reply "No" and we'll close your request.`;

@@ -27,6 +27,7 @@ const STATUS_CLS = {
   'College Selected': 'st-teal', 'Documents Shared': 'st-purple', 'Guidance Completed': 'st-green',
   'Callback Requested': 'st-amber', 'Human Assistance Required': 'st-red',
   'Counselor Assigned': 'st-amber', 'Not Interested': 'st-gray',
+  'Auto-Closed (No Response)': 'st-gray',
 };
 const STATUSES = Object.keys(STATUS_CLS);
 const isDelivered = (l) => l.welcome_status === 'delivered' || l.welcome_status === 'read';

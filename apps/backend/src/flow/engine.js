@@ -381,9 +381,10 @@ export async function handleFlowMessage(ctx, lead) {
   const fu = detectFollowUp(t);
   if (fu) return scheduleFollowUp(sock, jid, lead, fu.ms);
 
-  // No active step: full welcome for a brand-new contact, but a returning lead
+  // No active step (or an auto-closed / not-interested conversation the student
+  // re-opened): full welcome for a brand-new contact, but a returning lead
   // (we've messaged them before) gets greeted by name and resumed from context.
-  if (!lead.flow_step || lead.flow_step === 'not_interested') {
+  if (!lead.flow_step || lead.flow_step === 'not_interested' || lead.flow_step === 'closed') {
     if (await hasBotHistory(lead.id)) return resumeReturning(sock, jid, lead);
     await startFlow(sock, jid, lead);
     return;
