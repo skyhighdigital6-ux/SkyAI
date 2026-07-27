@@ -135,13 +135,34 @@ export function reminderAppPending(lead, collegeName) {
     `You can always contact us again whenever you need career guidance or admission assistance. 😊`;
 }
 
+// Expert lines formatted for the final reminder: "Name – Title\n📞 +91 phone".
+// Pulled live from the DB so names/numbers stay admin-editable.
+async function expertLinesFormatted() {
+  const list = await getActiveCounsellors();
+  return list.map((c) => {
+    const digits = String(c.phone || '').replace(/\D/g, '').replace(/^91/, '');
+    const phone = digits ? `📞 +91 ${digits}` : '';
+    return `${c.name} – ${c.title || 'Career Expert'}\n${phone}`.trim();
+  }).join('\n\n');
+}
+
 // Final reminder before auto-closing a stalled, low-engagement lead.
-export const reminderFinal = (lead) =>
-  `Hi ${nameOf(lead)} 👋\n` +
-  `This is a final reminder about your admission enquiry with ${BRAND}. ` +
-  `We haven't heard back from you, so we'll be closing this request for now.\n` +
-  `If you'd like to continue anytime, just reply to this message and we'll pick up right where we left off. ` +
-  `We wish you all the best for your future! 🌟`;
+export async function reminderFinal(lead) {
+  const experts = await expertLinesFormatted();
+  const handle = await getSetting('instagram_handle', 'skyhigheducationalservices');
+  return (
+    `Hi ${nameOf(lead)},\n\n` +
+    `This is our final reminder regarding your career guidance request.\n\n` +
+    `If you're still looking for the right course or college, simply continue by selecting the next option from the menu below. Our team will be happy to guide you through every step of the admission process.\n\n` +
+    `You can also connect with our experts directly:\n\n` +
+    `${experts}\n\n` +
+    `Stay updated with the latest admission news, scholarships, career guidance, and college information by following us on Instagram:\n\n` +
+    `Instagram: @${handle}\n` +
+    `https://www.instagram.com/${handle}/\n\n` +
+    `If you have already secured your admission or no longer require assistance, you may simply ignore this message.\n\n` +
+    `Thank you for choosing Sky High Educational Services. We wish you every success in your academic journey and future career!`
+  );
+}
 
 // First reminder — no course selected yet.
 export const reminderCoursePending = (lead) =>

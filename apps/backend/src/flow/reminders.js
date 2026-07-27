@@ -75,7 +75,8 @@ export async function runReminderSweep() {
     try {
       // ── Final reminder + auto-close (low-engagement, 24h no reply) ──
       if (lowEngagement && idle >= H24 && !lead.reminder_24h_sent) {
-        await sock.sendMessage(jid, { text: C.reminderFinal(lead) });
+        await sock.sendMessage(jid, { text: await C.reminderFinal(lead) });
+        await resendStep(sock, jid, lead, { arm: false }); // the "menu below" the message refers to
         await logMessage({ leadId: lead.id, direction: 'outbound', sender: 'bot', content: '[final reminder — conversation auto-closed]', messageType: 'system' });
         await patch(lead.id, {
           reminder_8h_sent: true, reminder_24h_sent: true,
