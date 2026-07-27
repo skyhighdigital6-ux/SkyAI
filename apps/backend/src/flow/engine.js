@@ -17,6 +17,7 @@ import {
 } from './menu.js';
 import { answerFreeText } from './aiFallback.js';
 import { checkAndNotify } from './notify.js';
+import { bumpScore, ACTION } from '../crm/scoring.js';
 
 const PAGE_SIZE = 8;
 
@@ -157,7 +158,8 @@ async function selectCollege(sock, jid, lead, { college, otherName }) {
   await say(sock, jid, lead, C.completion);
   await sendMenu(sock, jid, lead, 'Please choose an option:', actionMenu(await cat.getActiveCounsellors()));
   lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
-  // College picked → this is a Hot lead: alert the counsellor.
+  // College picked → score 70 + Hot-lead counsellor alert.
+  await bumpScore(lead.id, ACTION.college);
   await checkAndNotify(lead.id);
   return lead;
 }
@@ -167,7 +169,8 @@ async function goToStateStep(sock, jid, lead) {
   const states = await cat.getStatesForCourse(lead.selected_course_id);
   await sendMenu(sock, jid, lead, C.statePrompt, stateMenu(states));
   lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_state' });
-  // Course chosen → the lead is now Warm: alert the counsellor (deduped).
+  // Course chosen → score 30 + Warm-lead counsellor alert (deduped).
+  await bumpScore(lead.id, ACTION.course);
   await checkAndNotify(lead.id);
   return lead;
 }
@@ -176,7 +179,10 @@ async function goToCollegeStep(sock, jid, lead, { resetPage = true } = {}) {
   if (resetPage) lead = await updateLeadFields(lead.id, { college_page: 0 });
   const { text, options } = await buildStepMenu({ ...lead, flow_step: 'awaiting_college' });
   await sendMenu(sock, jid, lead, text, options);
-  return updateLeadFields(lead.id, { flow_step: 'awaiting_college' });
+  lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_college' });
+  // State chosen → score 50.
+  await bumpScore(lead.id, ACTION.state);
+  return lead;
 }
 
 // Did the student actually ask to SEE the options? Only then do we re-post the

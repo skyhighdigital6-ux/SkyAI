@@ -1,7 +1,9 @@
 'use client';
 // Leads manager — columns reflect the admission-counselling flow:
 // Course → State → College → Counsellor + flow status.
-import { useCallback, useEffect, useState } from 'react';
+// Prioritised by lead score (highest first), then most-recently-active, with
+// rich filtering + selectable sort — all applied client-side for instant updates.
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabase';
 import { DEMO, demoLeads } from '../../lib/demo';
@@ -27,26 +29,65 @@ const STATUS_CLS = {
   'Counselor Assigned': 'st-amber', 'Not Interested': 'st-gray',
 };
 const STATUSES = Object.keys(STATUS_CLS);
+const isDelivered = (l) => l.welcome_status === 'delivered' || l.welcome_status === 'read';
+
+// Score thresholds offered in the "min score" filter (match the scoring table).
+const SCORE_STEPS = [
+  { v: 10, label: '≥ 10 (delivered)' }, { v: 20, label: '≥ 20 (replied)' },
+  { v: 30, label: '≥ 30 (course)' }, { v: 50, label: '≥ 50 (state)' },
+  { v: 70, label: '70 (college)' },
+];
+
+// Selectable sort orders. Every option falls back to most-recently-active.
+const ACTIVE_DESC = (a, b) => new Date(b.last_active_at || 0) - new Date(a.last_active_at || 0);
+const SORTS = {
+  score_desc:  { label: 'Highest score', fn: (a, b) => (leadScore(b) - leadScore(a)) || ACTIVE_DESC(a, b) },
+  score_asc:   { label: 'Lowest score',  fn: (a, b) => (leadScore(a) - leadScore(b)) || ACTIVE_DESC(a, b) },
+  active_desc: { label: 'Most recently active',  fn: ACTIVE_DESC },
+  active_asc:  { label: 'Least recently active', fn: (a, b) => new Date(a.last_active_at || 0) - new Date(b.last_active_at || 0) },
+  newest:      { label: 'Newest leads', fn: (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0) },
+  oldest:      { label: 'Oldest leads', fn: (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0) },
+  az:          { label: 'Name A–Z', fn: (a, b) => (a.name || '').localeCompare(b.name || '') },
+  za:          { label: 'Name Z–A', fn: (a, b) => (b.name || '').localeCompare(a.name || '') },
+};
+
+const sortedNames = (obj) => Object.values(obj || {}).filter(Boolean).sort((a, b) => a.localeCompare(b));
 
 export default function Leads() {
   const router = useRouter();
   const [leads, setLeads] = useState(null);
   const [maps, setMaps] = useState({ courses: {}, states: {}, colleges: {}, counsellors: {} });
-  const [status, setStatus] = useState('');
-  const [humanOnly, setHumanOnly] = useState(false);
-  const [since, setSince] = useState('');
-  const [q, setQ] = useState('');
   const [showImport, setShowImport] = useState(false);
+
+  // filters + sort
+  const [q, setQ] = useState('');
+  const [status, setStatus] = useState('');
+  const [course, setCourse] = useState('');
+  const [stateF, setStateF] = useState('');
+  const [college, setCollege] = useState('');
+  const [counsellor, setCounsellor] = useState('');
+  const [delivered, setDelivered] = useState('');   // '', 'yes', 'no'
+  const [minScore, setMinScore] = useState('');
+  const [humanOnly, setHumanOnly] = useState(false);
+  const [since, setSince] = useState('');           // last active on/after
+  const [addedSince, setAddedSince] = useState(''); // created on/after
+  const [sortBy, setSortBy] = useState('score_desc');
 
   const load = useCallback(async () => {
     if (DEMO) { setLeads(demoLeads); return; }
     const { data } = await supabase.from('leads').select('*')
+      .order('lead_score', { ascending: false })
       .order('last_active_at', { ascending: false });
     setLeads(data ?? []);
   }, []);
 
   useEffect(() => { if (!DEMO) fetchCatalogMaps().then(setMaps); }, []);
   useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, [load]);
+
+  const resetFilters = () => {
+    setQ(''); setStatus(''); setCourse(''); setStateF(''); setCollege(''); setCounsellor('');
+    setDelivered(''); setMinScore(''); setHumanOnly(false); setSince(''); setAddedSince('');
+  };
 
   const deleteLead = async (e, l) => {
     e.stopPropagation();
@@ -63,12 +104,25 @@ export default function Leads() {
     load();
   };
 
-  const rows = (leads ?? []).filter((l) =>
-    (!status || l.flow_status === status) &&
-    (!humanOnly || l.needs_human) &&
-    (!since || new Date(l.last_active_at) >= new Date(since)) &&
-    (!q || (l.name || '').toLowerCase().includes(q.toLowerCase()) || l.whatsapp_number.includes(q))
-  );
+  // Filter then sort — recomputed on any filter/sort/data change, no refresh.
+  const rows = useMemo(() => {
+    const ql = q.toLowerCase();
+    const min = minScore ? Number(minScore) : 0;
+    const filtered = (leads ?? []).filter((l) =>
+      (!status || l.flow_status === status) &&
+      (!course || leadCourse(l, maps) === course) &&
+      (!stateF || leadState(l, maps) === stateF) &&
+      (!college || leadCollege(l, maps) === college) &&
+      (!counsellor || String(l.assigned_counsellor_id) === counsellor) &&
+      (!delivered || (delivered === 'yes' ? isDelivered(l) : !isDelivered(l))) &&
+      (!min || leadScore(l) >= min) &&
+      (!humanOnly || l.needs_human) &&
+      (!since || (l.last_active_at && new Date(l.last_active_at) >= new Date(since))) &&
+      (!addedSince || (l.created_at && new Date(l.created_at) >= new Date(addedSince))) &&
+      (!q || (l.name || '').toLowerCase().includes(ql) || l.whatsapp_number.includes(q))
+    );
+    return filtered.sort((SORTS[sortBy] || SORTS.score_desc).fn);
+  }, [leads, maps, q, status, course, stateF, college, counsellor, delivered, minScore, humanOnly, since, addedSince, sortBy]);
 
   return (
     <div>
@@ -79,26 +133,61 @@ export default function Leads() {
       </div>
       <LeadImport open={showImport} onClose={() => setShowImport(false)} onDone={load} />
       <div className="card">
-        <div className="filters">
+        <div className="filters" style={{ flexWrap: 'wrap', gap: 8, rowGap: 8 }}>
           <input type="text" placeholder="Search name / number…" value={q} onChange={(e) => setQ(e.target.value)} />
           <select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="">All statuses</option>
             {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
-          <input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
+          <select value={course} onChange={(e) => setCourse(e.target.value)}>
+            <option value="">All courses</option>
+            {sortedNames(maps.courses).map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={stateF} onChange={(e) => setStateF(e.target.value)}>
+            <option value="">All states</option>
+            {sortedNames(maps.states).map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={college} onChange={(e) => setCollege(e.target.value)}>
+            <option value="">All colleges</option>
+            {sortedNames(maps.colleges).map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <select value={counsellor} onChange={(e) => setCounsellor(e.target.value)}>
+            <option value="">All counsellors</option>
+            {Object.entries(maps.counsellors).map(([id, n]) => <option key={id} value={id}>{n}</option>)}
+          </select>
+          <select value={delivered} onChange={(e) => setDelivered(e.target.value)}>
+            <option value="">Delivered: any</option>
+            <option value="yes">Delivered</option>
+            <option value="no">Not delivered</option>
+          </select>
+          <select value={minScore} onChange={(e) => setMinScore(e.target.value)}>
+            <option value="">Any score</option>
+            {SCORE_STEPS.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+          </select>
+          <label className="sortnote" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Active since
+            <input type="date" value={since} onChange={(e) => setSince(e.target.value)} />
+          </label>
+          <label className="sortnote" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Added since
+            <input type="date" value={addedSince} onChange={(e) => setAddedSince(e.target.value)} />
+          </label>
           <label className="chk"><input type="checkbox" checked={humanOnly} onChange={(e) => setHumanOnly(e.target.checked)} /> Needs human only</label>
-          <span className="sortnote">Sorted by <b>most recent</b> ⇅</span>
+          <label className="sortnote" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>Sort by
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              {Object.entries(SORTS).map(([k, s]) => <option key={k} value={k}>{s.label}</option>)}
+            </select>
+          </label>
+          <button className="btn secondary" style={{ padding: '4px 10px' }} onClick={resetFilters}>Reset</button>
         </div>
         <div style={{ overflowX: 'auto' }}>
           <table>
             <thead><tr>
               <th>Name</th><th>Number</th><th>Temperature</th><th>Score</th><th>Stage</th>
               <th>Course</th><th>State</th><th>College</th><th>Counsellor</th>
-              <th>Source</th><th>Last Active</th><th>Needs Human</th><th></th>
+              <th>Delivered</th><th>Source</th><th>Last Active</th><th>Needs Human</th><th></th>
             </tr></thead>
             <tbody>
-              {leads === null && <tr><td colSpan={13} className="muted">Loading…</td></tr>}
-              {rows.length === 0 && leads !== null && <tr><td colSpan={13} className="muted">No leads match.</td></tr>}
+              {leads === null && <tr><td colSpan={14} className="muted">Loading…</td></tr>}
+              {rows.length === 0 && leads !== null && <tr><td colSpan={14} className="muted">No leads match.</td></tr>}
               {rows.map((l) => {
                 const cls = STATUS_CLS[l.flow_status] ?? 'st-gray';
                 const temp = leadTemp(l);
@@ -113,6 +202,7 @@ export default function Leads() {
                     <td>{leadState(l, maps)}</td>
                     <td>{leadCollege(l, maps)}</td>
                     <td>{leadCounsellor(l, maps)}</td>
+                    <td><span className={`badge ${isDelivered(l) ? 'yes' : 'no'}`}>{isDelivered(l) ? 'Yes' : 'No'}</span></td>
                     <td className="muted">{l.entry_source ?? '—'}</td>
                     <td>{timeAgo(l.last_active_at)}</td>
                     <td><span className={`badge ${l.needs_human ? 'yes' : 'no'}`}>{l.needs_human ? 'Yes' : 'No'}</span></td>

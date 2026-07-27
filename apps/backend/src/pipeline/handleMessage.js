@@ -8,6 +8,7 @@
 import { supabase } from '../db/supabase.js';
 import { findOrCreateLead, updateLeadFields } from '../crm/leads.js';
 import { logMessage } from '../crm/messages.js';
+import { markReplied } from '../crm/scoring.js';
 import { handleFlowMessage } from '../flow/engine.js';
 
 // The Google Business Profile "chat" button pre-fills a message like
@@ -58,6 +59,9 @@ async function processMessage({ sock, jid, number, name, text, raw }) {
     leadId: lead.id, direction: 'inbound', sender: 'student',
     content: text, messageType: 'text', waMessageId: waId,
   });
+
+  // Student replied → mark active + score ≥ 20 (later flow steps raise it).
+  await markReplied(lead.id, lead.lead_score);
 
   // Human took over (handover / callback / admin) → bot stays silent.
   if (lead.needs_human) {

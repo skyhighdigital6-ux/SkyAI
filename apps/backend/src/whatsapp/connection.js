@@ -22,6 +22,7 @@ import { config } from '../config.js';
 import { onIncomingMessages } from './incoming.js';
 import { restoreSession, backupSession, clearRemoteSession } from './sessionStore.js';
 import { supabase } from '../db/supabase.js';
+import { bumpScore, ACTION } from '../crm/scoring.js';
 
 // Baileys ack levels: 3 = delivered to device, 4 = read, 5 = played.
 // Map welcome-message receipts to the lead's welcome_status so admins see
@@ -35,6 +36,7 @@ async function onWelcomeReceipt(waId, ackStatus) {
   if (!lead) return;
   if ((RANK[next] ?? 0) <= (RANK[lead.welcome_status] ?? 0)) return; // never go backwards
   await supabase.from('leads').update({ welcome_status: next }).eq('id', lead.id);
+  await bumpScore(lead.id, ACTION.delivered); // message delivered → score ≥ 10
 }
 
 // Baileys is chatty; keep its internal logs quiet by default and do our own.
