@@ -15,12 +15,14 @@ create index if not exists leads_score_active_idx on leads (lead_score desc, las
 create index if not exists leads_created_idx       on leads (created_at desc);
 
 -- Backfill existing leads onto the new scheme from their current flow state.
-update leads set
+-- "Replied = 20" is keyed off an actual inbound student message (NOT flow_step,
+-- which the welcome worker sets even for delivered-but-never-replied leads).
+update leads l set
   lead_score = case
     when selected_college_id is not null or other_college is not null then 70
     when selected_state_id  is not null or other_state  is not null then 50
     when selected_course_id is not null or other_course is not null then 30
-    when flow_step is not null then 20
+    when exists (select 1 from messages m where m.lead_id = l.id and m.sender = 'student') then 20
     when welcome_status in ('delivered','read') then 10
     else 0 end,
   lead_temperature = case
