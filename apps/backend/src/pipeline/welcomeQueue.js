@@ -9,6 +9,7 @@ import { supabase } from '../db/supabase.js';
 import { logMessage } from '../crm/messages.js';
 import { getSocket, getWaState } from '../whatsapp/connection.js';
 import { updateLeadFields } from '../crm/leads.js';
+import { bumpScore, ACTION } from '../crm/scoring.js';
 import * as C from '../flow/copy.js';
 import { courseMenu, sendMenu } from '../flow/menu.js';
 import { getActiveCourses } from '../flow/catalog.js';
@@ -48,6 +49,7 @@ export async function runWelcomeSweep() {
           welcome_status: 'sent', welcome_attempts: attempt,
           welcome_wa_id: sent?.key?.id ?? null, welcomed_at: new Date().toISOString(), welcome_error: null,
         });
+        await bumpScore(lead.id, ACTION.delivered); // welcome sent → score ≥ 10
         console.log(`[welcome] ✅ sent to +${lead.whatsapp_number}`);
       } catch (err) {
         await updateLeadFields(lead.id, {

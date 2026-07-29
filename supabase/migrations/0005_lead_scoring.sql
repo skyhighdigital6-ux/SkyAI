@@ -23,7 +23,7 @@ update leads l set
     when selected_state_id  is not null or other_state  is not null then 50
     when selected_course_id is not null or other_course is not null then 30
     when exists (select 1 from messages m where m.lead_id = l.id and m.sender = 'student') then 20
-    when welcome_status in ('delivered','read') then 10
+    when welcome_status in ('sent','delivered','read') then 10
     else 0 end,
   lead_temperature = case
     when selected_college_id is not null or other_college is not null then 'Hot'
