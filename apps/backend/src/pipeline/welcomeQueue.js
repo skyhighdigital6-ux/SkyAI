@@ -10,7 +10,7 @@ import { logMessage } from '../crm/messages.js';
 import { getSocket, getWaState } from '../whatsapp/connection.js';
 import { updateLeadFields } from '../crm/leads.js';
 import { bumpScore, ACTION } from '../crm/scoring.js';
-import { cloudEnabled, sendTemplate } from '../whatsapp/cloudApi.js';
+import { cloudEnabled, sendTemplate, dailyLimit } from '../whatsapp/cloudApi.js';
 import * as C from '../flow/copy.js';
 import { courseMenu, sendMenu } from '../flow/menu.js';
 import { getActiveCourses } from '../flow/catalog.js';
@@ -30,6 +30,18 @@ export async function runWelcomeSweep() {
   if (running || (!useCloud && getWaState().status !== 'connected')) return;
   running = true;
   try {
+    // Respect Meta's per-24h business-initiated cap (tier-based). The rest of
+    // the queue simply waits for the window to roll forward.
+    if (useCloud) {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await supabase.from('leads')
+        .select('id', { count: 'exact', head: true })
+        .gte('welcomed_at', since);
+      if ((count || 0) >= dailyLimit()) {
+        console.log(`[welcome] daily cap reached (${count}/${dailyLimit()}) — pausing until the 24h window rolls`);
+        return;
+      }
+    }
     const { data: leads, error } = await supabase.from('leads').select('*')
       .eq('welcome_status', 'pending')
       .is('flow_step', null)

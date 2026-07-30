@@ -14,9 +14,14 @@
 //   WA_API_VERSION        default v25.0
 //   WA_WELCOME_TEMPLATE   approved template name, default 'welcome'
 //   WA_TEMPLATE_LANG      default 'en'
+// Both naming styles are accepted so either set of Railway vars works.
 const API = () => `https://graph.facebook.com/${process.env.WA_API_VERSION || 'v25.0'}`;
-const PHONE_ID = () => process.env.WA_PHONE_NUMBER_ID;
-const TOKEN = () => process.env.WA_CLOUD_TOKEN;
+const PHONE_ID = () => process.env.WA_PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+const TOKEN = () => process.env.WA_CLOUD_TOKEN || process.env.WHATSAPP_TOKEN;
+
+// Meta caps business-initiated conversations per rolling 24h by tier
+// (this account: TIER_250). Staying under it avoids hard rejections.
+export const dailyLimit = () => Number(process.env.WA_DAILY_LIMIT) || 250;
 
 export const cloudEnabled = () => Boolean(TOKEN() && PHONE_ID());
 export const WELCOME_TEMPLATE = () => process.env.WA_WELCOME_TEMPLATE || 'welcome';
