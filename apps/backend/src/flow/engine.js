@@ -196,6 +196,35 @@ function wantsOptions(t) {
   return false;
 }
 
+// ── Cloud API welcome-template shortcuts ────────────────────────────
+// The approved template (skyhigh_welcome) hard-codes its own numbered list of
+// 10 courses, plus MORE / HELP. A student replying "2" means the SECOND item on
+// THAT list — not the second item of the live catalogue menu, whose ordering
+// differs — so those replies are resolved here. Each entry locates the matching
+// catalogue row by name, so it keeps working if a course is renamed or reordered.
+const TEMPLATE_COURSES = [
+  { n: 1, re: /engineer|b\.?\s?tech/i },
+  { n: 2, re: /mbbs|bds|medical|dental/i },
+  { n: 3, re: /mba|bba|management/i },
+  { n: 4, re: /llb|llm|\blaw\b/i },
+  { n: 5, re: /pharm/i },
+  { n: 6, re: /nursing/i },
+  { n: 7, re: /bca|mca|computer\s*app/i },
+  { n: 8, re: /b\.?\s?com|m\.?\s?com|commerce/i },
+  { n: 9, re: /b\.?\s?des|design/i },
+  { n: 10, re: /allied|health\s*science/i },
+];
+
+// "1️⃣" / "🔟" (keycap emoji) → plain digits, so taps and typed numbers match.
+const plainDigits = (s) => String(s || '')
+  .replace(/🔟/g, '10')
+  .replace(/([0-9])️?⃣/g, '$1');
+
+const templateChoice = (t) => {
+  const m = plainDigits(t).trim().match(/^(10|[1-9])$/);
+  return m ? Number(m[1]) : null;
+};
+
 // A short standalone greeting ("hi", "hello", "namaste", "assalamualaikum"…).
 function isGreeting(t) {
   const s = String(t || '').toLowerCase().replace(/[^a-z ]/g, '').trim();
@@ -396,10 +425,27 @@ export async function handleFlowMessage(ctx, lead) {
     lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
   }
 
-  // The Cloud API welcome is a standalone template — no 24h window is open, so
-  // the course menu can't ride along with it. Their first reply opens the
-  // window: send the menu now and enter the normal flow.
+  // First reply after the Cloud API welcome template. The template carries its
+  // own 10-course list + MORE/HELP, so honour those here; anything else falls
+  // through to the full catalogue menu (which the open 24h window now allows).
   if (lead.flow_step === 'awaiting_start') {
+    if (/^\s*help\s*$/i.test(t) || wantsHuman(t)) return goHandover(sock, jid, lead);
+
+    const pick = templateChoice(t);
+    if (pick) {
+      const spec = TEMPLATE_COURSES.find((c) => c.n === pick);
+      const course = (await cat.getActiveCourses()).find((c) => spec?.re.test(c.name));
+      if (course) {
+        lead = await updateLeadFields(lead.id, {
+          selected_course_id: course.id, other_course: null,
+          flow_status: 'Course Selected', unrecognized_count: 0,
+        });
+        return goToStateStep(sock, jid, lead);   // straight to states — no re-asking
+      }
+      // Course not in the catalogue (renamed/deactivated) → show the real list.
+    }
+
+    // MORE, a button tap, or anything unrecognised → full course menu.
     await sendMenu(sock, jid, lead, C.coursePrompt, courseMenu(await cat.getActiveCourses()));
     return updateLeadFields(lead.id, { flow_step: 'awaiting_course', unrecognized_count: 0 });
   }
