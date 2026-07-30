@@ -396,6 +396,14 @@ export async function handleFlowMessage(ctx, lead) {
     lead = await updateLeadFields(lead.id, { flow_step: 'awaiting_action' });
   }
 
+  // The Cloud API welcome is a standalone template — no 24h window is open, so
+  // the course menu can't ride along with it. Their first reply opens the
+  // window: send the menu now and enter the normal flow.
+  if (lead.flow_step === 'awaiting_start') {
+    await sendMenu(sock, jid, lead, C.coursePrompt, courseMenu(await cat.getActiveCourses()));
+    return updateLeadFields(lead.id, { flow_step: 'awaiting_course', unrecognized_count: 0 });
+  }
+
   // ── free-text steps (Other course/state/college) ──
   if (lead.flow_step === 'awaiting_other_course') {
     if (!t) return invalid(sock, jid, lead, t);

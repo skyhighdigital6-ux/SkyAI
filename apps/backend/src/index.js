@@ -11,6 +11,7 @@ import { startReminderScheduler } from './flow/reminders.js';
 import { startWelcomeWorker } from './pipeline/welcomeQueue.js';
 import { startDialer } from './voice/dialer.js';
 import { voiceWebhook } from './voice/webhook.js';
+import { cloudWebhook } from './whatsapp/cloudWebhook.js';
 import { apiRoutes } from './api/routes.js';
 
 const app = express();
@@ -25,6 +26,10 @@ app.get('/health', (_req, res) => {
 // Voice-provider callbacks: no staff JWT, guarded by VOICE_WEBHOOK_SECRET.
 // Mounted before /api so it isn't caught by requireStaff.
 app.use('/webhooks/voice', voiceWebhook);
+
+// WhatsApp Cloud API inbound (Meta POSTs here) — no staff JWT, guarded by
+// WA_WEBHOOK_VERIFY_TOKEN during subscription. Also mounted before /api.
+app.use('/webhooks/whatsapp', cloudWebhook);
 
 app.use('/api', apiRoutes);
 

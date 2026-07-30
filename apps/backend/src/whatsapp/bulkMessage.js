@@ -12,6 +12,7 @@
 import { supabase } from '../db/supabase.js';
 import { logMessage } from '../crm/messages.js';
 import { getSocket } from './connection.js';
+import { cloudEnabled, cloudSock } from './cloudApi.js';
 
 const MAX_RECIPIENTS = 200;
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // WhatsApp's practical media cap
@@ -110,8 +111,12 @@ export function buttonLines(buttons) {
 }
 
 // One recipient: media (with the text as caption) → options → plain text.
+// Bulk is business-initiated, so it goes over the official Cloud API when
+// configured. NOTE: free-form Cloud sends only reach students with an open 24h
+// window; anyone outside it needs an approved template and Meta will reject the
+// send with a clear reason (recorded per-recipient in the job's failure count).
 async function sendTemplate(jid, { text, media, buttons }) {
-  const sock = getSocket();
+  const sock = cloudEnabled() ? cloudSock() : getSocket();
   const options = buttons?.length ? buttonLines(buttons) : null;
 
   if (media) {
