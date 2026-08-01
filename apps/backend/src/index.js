@@ -12,6 +12,7 @@ import { startWelcomeWorker } from './pipeline/welcomeQueue.js';
 import { startDialer } from './voice/dialer.js';
 import { voiceWebhook } from './voice/webhook.js';
 import { cloudWebhook } from './whatsapp/cloudWebhook.js';
+import { privacyHtml } from './privacy.js';
 import { apiRoutes } from './api/routes.js';
 
 const app = express();
@@ -21,6 +22,12 @@ app.use(express.json({ limit: '25mb' }));
 
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'skyai-backend' });
+});
+
+// Public privacy policy — required to publish the Meta/WhatsApp app. Mounted
+// before /api so it stays anonymous (no staff auth) and is crawlable.
+app.get('/privacy', (_req, res) => {
+  res.type('html').set('Cache-Control', 'public, max-age=3600').send(privacyHtml());
 });
 
 // Voice-provider callbacks: no staff JWT, guarded by VOICE_WEBHOOK_SECRET.
